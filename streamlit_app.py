@@ -101,7 +101,6 @@ with c3:
 st.divider()
 
 # --- 6. RIADOK PRE POLOŽKU (Všetko v jednom) ---
-st.subheader("Špecifikácia položky")
 
 # Definujeme veľa stĺpcov, aby sa to zmestilo: 
 # Item | Náročnosť | KS | Tvar | Rozmer1 | Rozmer2 | Rozmer3
