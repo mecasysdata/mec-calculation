@@ -250,5 +250,4 @@ if not akost_finalna or hustota <= 0:
     st.stop()
 
 st.divider()
-st.success(f"Zvolený materiál: **{material} {akost_finalna}** | Hustota: **{hustota} kg/m3**")
 
