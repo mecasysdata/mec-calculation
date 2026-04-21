@@ -183,48 +183,4 @@ if akost_vyber == "Iná akosť (zadať ručne)":
 else:
     akost_finalna = akost_vyber
 
-# --- 10. VÝPOČET HUSTOTY (Opravená verzia) ---
-hustota_auto = 0.0
 
-if material == "PLAST":
-    # 1. Prevedieme výber aj tabuľku na veľké písmená pre 100% zhodu
-    akost_hladana = str(akost_finalna).strip().upper()
-    
-    # 2. Vytvoríme dočasnú kópiu tabuľky s očistenými názvami
-    df_temp = df_materialy.copy()
-    df_temp['akost_upper'] = df_temp['akost'].astype(str).str.strip().str.upper()
-    df_temp['mat_upper'] = df_temp['material'].astype(str).str.strip().str.upper()
-
-    # 3. Vyhľadáme riadok
-    vyber_df = df_temp[(df_temp['mat_upper'] == "PLAST") & (df_temp['akost_upper'] == akost_hladana)]
-    
-    if not vyber_df.empty:
-        raw_val = str(vyber_df['hustota'].values[0])
-        # Odstránime tisíckové čiarky, medzery a nahradíme desatinnú čiarku bodkou
-        clean_val = raw_val.replace(',', '').replace(' ', '').replace('\xa0', '').strip()
-        try: 
-            hustota_auto = float(clean_val)
-        except: 
-            hustota_auto = 0.0
-    else:
-        # Ak nenašlo presnú akosť, skúsime aspoň nájsť materiál a vrátiť 0.0 (manuálne zadanie)
-        hustota_auto = 0.0
-
-elif material == "NEREZ":
-    hustota_auto = 8000.0
-elif material == "OCEĽ":
-    hustota_auto = 7900.0
-elif material == "FAREBNÉ KOVY":
-    akost_test = str(akost_finalna).replace(',', '.')
-    if akost_test.startswith("3.7"): hustota_auto = 4500.0
-    elif akost_test.startswith("3."): hustota_auto = 2900.0
-    elif akost_test.startswith("2."): hustota_auto = 9000.0
-
-# --- ZOBRAZENIE VO WIDGETE ---
-# Tu používame kľúč 'hustota_val', aby sme sa vyhli konfliktom
-hustota = st.number_input(
-    "Hustota [kg/m3]", 
-    value=float(hustota_auto), 
-    format="%.2f", 
-    key="hustota_input_unique"
-)
