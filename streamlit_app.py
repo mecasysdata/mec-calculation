@@ -1,4 +1,4 @@
-mport streamlit as st
+import streamlit as st
 
 st.title("MEC Calculation")
 st.write("Vitajte vo vašej aplikácii na výpočet cien!")
