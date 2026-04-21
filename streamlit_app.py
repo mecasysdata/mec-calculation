@@ -107,57 +107,47 @@ if vyber == moznost_novy and (not novy_meno or not novy_krajina):
 
 st.success(f"Aktuálny výber: **{final_zakaznik}** | Krajina: **{final_krajina}** | Lojalita: **{final_lojalita}**")
 st.divider()
-
-# --- 6. RIADOK PRE POLOŽKU (Item, Náročnosť, KS, Tvar) ---
+# --- 6. RIADOK PRE POLOŽKU (Všetko v jednom) ---
 st.subheader("Špecifikácia položky")
 
-# Hlavné stĺpce pre základné atribúty
-r1, r2, r3, r4 = st.columns([2, 1, 1, 1.5])
+# Definujeme veľa stĺpcov, aby sa to zmestilo: 
+# Item | Náročnosť | KS | Tvar | Rozmer1 | Rozmer2 | Rozmer3
+cols = st.columns([2, 0.8, 0.8, 1, 0.8, 0.8, 0.8])
 
-with r1:
-    item_nazov = st.text_input("ITEM (Označenie komponentu)", placeholder="napr. Hriadeľ 001")
+with cols[0]:
+    item_nazov = st.text_input("ITEM", placeholder="Názov komponentu")
 
-with r2:
-    narocnost = st.selectbox("Náročnosť výroby", options=[1, 2, 3, 4, 5])
+with cols[1]:
+    narocnost = st.selectbox("Náročnosť", options=[1, 2, 3, 4, 5])
 
-with r3:
-    pocet_ks = st.number_input("Počet kusov (KS)", min_value=1, step=1, value=1)
+with cols[2]:
+    pocet_ks = st.number_input("KS", min_value=1, step=1, value=1)
 
-with r4:
+with cols[3]:
     tvar = st.selectbox("Tvar", options=["KR", "STV"])
 
-# --- 7. DYNAMICKÉ POLIA PRE ROZMERY ---
-# Vytvoríme riadok pre rozmery, ktorý sa mení podľa "tvar"
-st.write("**Rozmery (mm):**")
-dist1, dist2, dist3, dist_prazdny = st.columns([1, 1, 1, 4])
-
-# Inicializácia premenných pre rozmery
+# Dynamické rozmery v stĺpcoch 4, 5 a 6
 rozmer_D = 0.0
 rozmer_L = 0.0
 rozmer_S = 0.0
 rozmer_V = 0.0
 
 if tvar == "KR":
-    with dist1:
-        rozmer_D = st.number_input("D", min_value=0.0, format="%.2f", help="Priemer v mm")
-    with dist2:
-        rozmer_L = st.number_input("L", min_value=0.0, format="%.2f", help="Dĺžka v mm")
-    # Tretie pole ostane prázdne pri KR
+    with cols[4]:
+        rozmer_D = st.number_input("D (mm)", min_value=0.0, format="%.2f")
+    with cols[5]:
+        rozmer_L = st.number_input("L (mm)", min_value=0.0, format="%.2f")
+    with cols[6]:
+        # Prázdne pole, aby línia pokračovala
+        st.write("")
 
 elif tvar == "STV":
-    with dist1:
-        rozmer_D = st.number_input("D/P", min_value=0.0, format="%.2f", help="Dĺžka/Priemer v mm")
-    with dist2:
-        rozmer_S = st.number_input("S", min_value=0.0, format="%.2f", help="Šírka v mm")
-    with dist3:
-        rozmer_V = st.number_input("V", min_value=0.0, format="%.2f", help="Výška v mm")
+    with cols[4]:
+        rozmer_D = st.number_input("D/P (mm)", min_value=0.0, format="%.2f")
+    with cols[5]:
+        rozmer_S = st.number_input("S (mm)", min_value=0.0, format="%.2f")
+    with cols[6]:
+        rozmer_V = st.number_input("V (mm)", min_value=0.0, format="%.2f")
 
 st.divider()
 
-# --- UKÁŽKA ZOSBIERANÝCH DÁT (na kontrolu) ---
-st.write(f"### Sumár položky:")
-summary_cols = st.columns(4)
-summary_cols[0].metric("Položka", item_nazov)
-summary_cols[1].metric("Náročnosť", narocnost)
-summary_cols[2].metric("Kusy", pocet_ks)
-summary_cols[3].metric("Tvar", tvar)
