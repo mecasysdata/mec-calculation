@@ -100,13 +100,6 @@ with c3:
 
 st.divider()
 
-# --- 5. FINÁLNY VÝSTUP (Pre ďalšie výpočty) ---
-if vyber == moznost_novy and (not novy_meno or not novy_krajina):
-    st.info("Zadajte údaje pre nového zákazníka v riadku vyššie.")
-    st.stop()
-
-st.success(f"Aktuálny výber: **{final_zakaznik}** | Krajina: **{final_krajina}** | Lojalita: **{final_lojalita}**")
-st.divider()
 # --- 6. RIADOK PRE POLOŽKU (Všetko v jednom) ---
 st.subheader("Špecifikácia položky")
 
