@@ -143,6 +143,8 @@ elif tvar == "STV":
 
 st.divider()
 # --- 8. NAČÍTANIE SHEETU MATERIÁLOV (Hustoty) ---
+
+# --- 8. NAČÍTANIE SHEETU MATERIÁLOV (Pre hustotu plastov) ---
 sheet_hustoty_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRcCPwLT_Cm8Xpj4urw7DUa5FGGyWiCEKKl8ySUEnGtFjsKzbvwtw6MURs1TyqasHhAJsWcdP6d3Q7O/pub?gid=0&single=true&output=csv"
 
 @st.cache_data(ttl=60)
@@ -159,28 +161,85 @@ def load_material_data(url):
 
 df_materialy = load_material_data(sheet_hustoty_url)
 
-# --- 9. SEKCIA MATERIÁL A HUSTOTA ---
+# --- 9. SEKCIA MATERIÁL A HUSTOTA (V jednom riadku) ---
+st.subheader("Materiál a fyzikálne vlastnosti")
 
-m_col1, m_col2, m_col3 = st.columns([2, 2, 2])
+# Rozdelíme riadok na 3 časti: Materiál | Akosť | Hustota
+m_col1, m_col2, m_col3 = st.columns([2, 2.5, 1.5])
 
 with m_col1:
     seznam_materialov = sorted(df_materialy['material'].unique())
     material = st.selectbox("Materiál", options=seznam_materialov, key="sel_mat")
 
 with m_col2:
+    # Filtrujeme akosti podľa materiálu
     seznam_akosti = list(sorted(df_materialy[df_materialy['material'] == material]['akost'].unique()))
     if "Iná akosť (zadať ručne)" not in seznam_akosti:
         seznam_akosti.append("Iná akosť (zadať ručne)")
     
     akost_vyber = st.selectbox("Akosť", options=seznam_akosti, key="sel_akost")
+    
+    # Ak zvolí ručné zadanie
+    if akost_vyber == "Iná akosť (zadať ručne)":
+        akost_finalna = st.text_input("Názov novej akosti:", key="n_akost_text")
+    else:
+        akost_finalna = akost_vyber
 
-# Logika pre určenie názvu akosti a hustoty
+# --- 10. LOGIKA PRIRADENIA HUSTOTY (Pravidlá) ---
 hustota_auto = 0.0
-akost_finalna = ""
 
-if akost_vyber == "Iná akosť (zadať ručne)":
-    akost_finalna = st.text_input("Zadajte názov novej akosti:", key="n_akost_text")
-else:
-    akost_finalna = akost_vyber
+if material == "NEREZ":
+    hustota_auto = 8000.0
+elif material == "OCEĽ":
+    hustota_auto = 7900.0
+elif material == "FAREBNÉ KOVY":
+    akost_test = str(akost_finalna).replace(',', '.')
+    if akost_test.startswith("3.7"):
+        hustota_auto = 4500.0
+    elif akost_test.startswith("3."):
+        hustota_auto = 2900.0
+    elif akost_test.startswith("2."):
+        hustota_auto = 9000.0
+elif material == "PLAST":
+    # Hľadáme v tabuľke (ignorujeme veľkosť písma a medzery)
+    hladana_akost = str(akost_finalna).strip().upper()
+    df_temp = df_materialy.copy()
+    df_temp['akost_up'] = df_temp['akost'].astype(str).str.strip().str.upper()
+    
+    zhoda = df_temp[(df_temp['material'] == "PLAST") & (df_temp['akost_up'] == hladana_akost)]
+    
+    if not zhoda.empty:
+        raw_h = str(zhoda['hustota'].values[0])
+        # Čistenie formátu (čiarky, medzery)
+        clean_h = raw_h.replace(',', '').replace(' ', '').replace('\xa0', '').strip()
+        try:
+            hustota_auto = float(clean_h)
+        except:
+            hustota_auto = 0.0
 
+with m_col3:
+    # Políčko pre hustotu hneď vedľa akosti
+    hustota = st.number_input(
+        "Hustota [kg/m3]", 
+        min_value=0.0, 
+        value=float(hustota_auto), 
+        format="%.2f", 
+        key="hustota_input"
+    )
 
+# --- 11. TLAČIDLO PRE ULOŽENIE NOVEJ AKOSTI (Ak je treba) ---
+if akost_vyber == "Iná akosť (zadať ručne)" and akost_finalna:
+    if st.button("💾 Uložiť novú akosť a hustotu"):
+        if hustota > 0:
+            url_api_h = "https://script.google.com/macros/s/AKfycbysapIykA2JulM9882rQmM3tfFvbvrmYDeW-iM5jyR4MTg8ZlNWhTdgV4pGxNhn6JNb/exec"
+            try:
+                requests.post(url_api_h, json={"material": material, "akost": akost_finalna, "hustota": hustota})
+                st.success("Uložené!")
+                st.cache_data.clear()
+            except:
+                st.error("Chyba spojenia.")
+
+# Validácia pre stop
+if not akost_finalna or hustota <= 0:
+    st.warning("Vyberte materiál a skontrolujte hustotu.")
+    st.stop()
