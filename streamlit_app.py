@@ -25,5 +25,3 @@ with col_ref:
     # Atribút Označenie cenovej ponuky - voľný textový vstup
     oznacenie_ponuky = st.text_input("Označenie cenovej ponuky", placeholder="napr. CP-2024-001")
 
-# Len pre kontrolu si môžeme vypísať, čo užívateľ zadal (neskôr to môžeme zmazať)
-st.write(f"Pripravujete ponuku: **{oznacenie_ponuky}** zo dňa {datum_ponuky.strftime('%d.%m.%Y')}")
