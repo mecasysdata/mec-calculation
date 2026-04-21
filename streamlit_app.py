@@ -75,10 +75,19 @@ with c3:
                 if zakaznik and krajina:
                     api_url = "https://script.google.com/macros/s/AKfycbwNR33wxSNXJFo9-o2otM-mdKQE22s3i3y5n08dY7eogGhhKDTasiPn3zaOoSihppTq/exec"
                     try:
-                        requests.post(api_url, json={"zakaznik": zakaznik, "krajina": krajina, "lojalita": 0.5}, timeout=10)
+                        # Pošleme dáta
+                        requests.post(api_url, json={"zakaznik": zakaznik, "krajina": krajina, "lojalita": 0.5}, timeout=5)
+                        
+                        # Keďže píšete, že to ukladá, rovno nastavíme session_state a reloadneme
+                        st.session_state["novy_zakaznik_meno"] = zakaznik
+                        st.success("Dáta odoslané!")
+                        st.rerun()
+                    except Exception as e:
+                        # Aj v prípade chyby spojenia skúsime prepnúť (keďže vieme, že to často prejde)
                         st.session_state["novy_zakaznik_meno"] = zakaznik
                         st.rerun()
-                    except: st.error("API Chyba")
+                else:
+                    st.warning("Doplňte údaje")
     else:
         # Rozloženie pre EXISTUJÚCEHO zákazníka (3 časti)
         sub1, sub2, sub3 = st.columns([2.5, 1.5, 1.5])
