@@ -106,3 +106,4 @@ if vyber == moznost_novy and (not novy_meno or not novy_krajina):
     st.stop()
 
 st.success(f"Aktuálny výber: **{final_zakaznik}** | Krajina: **{final_krajina}** | Lojalita: **{final_lojalita}**")
+st.divider()
