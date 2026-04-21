@@ -162,7 +162,6 @@ def load_material_data(url):
 df_materialy = load_material_data(sheet_hustoty_url)
 
 # SEKCIA MATERIÁL A HUSTOTA ---
-st.subheader("Materiál a fyzikálne vlastnosti")
 
 # Rozloženie: Materiál | Akosť | Hustota (v jednom riadku)
 m_col1, m_col2, m_col3 = st.columns([2, 2.5, 1.5])
