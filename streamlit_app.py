@@ -211,4 +211,4 @@ if not akost_finalna or hustota <= 0:
     st.stop()
 
 st.divider()
-st.success(f"Pripravené: {final_zakaznik} | {item_nazov} | {material} {akost_finalna} ({hustota} kg/m3)")
+
