@@ -30,7 +30,6 @@ def load_data(url):
 
 df_zakaznici = load_data(sheet_url)
 
-# Zoznam mien pre selectbox
 zoznam_mien = sorted(df_zakaznici['zakaznik'].unique().tolist())
 moznost_novy = "Nový zákazník (zadať ručne)"
 if moznost_novy not in zoznam_mien:
@@ -47,10 +46,8 @@ with c2:
 
 with c3:
     target_customer = st.session_state.get("last_added", zoznam_mien[0])
-    try:
-        idx = zoznam_mien.index(target_customer)
-    except:
-        idx = 0
+    try: idx = zoznam_mien.index(target_customer)
+    except: idx = 0
 
     sub_select, sub_detail = st.columns([2, 4])
 
@@ -65,7 +62,7 @@ with c3:
             with n3: st.text_input("Lojalita", value="0.5", disabled=True)
             with n4:
                 st.write(" ")
-                if st.button("Uložiť"):
+                if st.button("Uložiť", key="btn_save_cust"):
                     if novy_meno and novy_krajina:
                         api = "https://script.google.com/macros/s/AKfycbwNR33wxSNXJFo9-o2otM-mdKQE22s3i3y5n08dY7eogGhhKDTasiPn3zaOoSihppTq/exec"
                         requests.post(api, json={"zakaznik": novy_meno, "krajina": novy_krajina, "lojalita": 0.5})
@@ -74,10 +71,8 @@ with c3:
             final_zakaznik, final_krajina, final_lojalita = novy_meno, novy_krajina, 0.5
         
         else:
-            # --- OPRAVA: Dynamické hľadanie dát podľa 'vyber' ---
             v1, v2 = st.columns([1, 1])
             row = df_zakaznici[df_zakaznici['zakaznik'] == vyber]
-            
             if not row.empty:
                 res_krajina = str(row['krajina'].values[0])
                 l_raw = str(row['lojalita'].values[0])
@@ -86,10 +81,8 @@ with c3:
             else:
                 res_krajina, res_lojalita = "---", 0.5
             
-            # Použijeme dynamický key, aby sa políčka Krajina a Lojalita okamžite zmenili
             with v1: st.text_input("Krajina", value=res_krajina, disabled=True, key=f"kraj_{vyber}")
             with v2: st.text_input("Lojalita", value=res_lojalita, disabled=True, key=f"loj_{vyber}")
-            
             final_zakaznik, final_krajina, final_lojalita = vyber, res_krajina, res_lojalita
 
 st.divider()
@@ -118,7 +111,7 @@ elif tvar == "STV":
 
 st.divider()
 
-# --- 7. MATERIÁL A HUSTOTA ---
+# --- 7. MATERIÁL A HUSTOTA (Upravená sekcia s dynamickým riadkom) ---
 sheet_hustoty_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRcCPwLT_Cm8Xpj4urw7DUa5FGGyWiCEKKl8ySUEnGtFjsKzbvwtw6MURs1TyqasHhAJsWcdP6d3Q7O/pub?gid=0&single=true&output=csv"
 
 @st.cache_data(ttl=60)
@@ -135,59 +128,76 @@ def load_material_data(url):
 
 df_materialy = load_material_data(sheet_hustoty_url)
 
-m_col1, m_col2, m_col3 = st.columns([2, 2.5, 1.5])
+# Layout riadku pre Materiál a Akosť
+m_col1, m_col_rest = st.columns([2, 6.5])
 
 with m_col1:
     seznam_materialov = sorted(df_materialy['material'].unique())
     material = st.selectbox("Materiál", options=seznam_materialov, key="sel_material_main")
 
-with m_col2:
+with m_col_rest:
+    # Definujeme stĺpce vnútri dynamicky podľa toho, či je vybraná "Iná akosť"
     seznam_akosti = list(sorted(df_materialy[df_materialy['material'] == material]['akost'].unique()))
     if "Iná akosť (zadať ručne)" not in seznam_akosti:
         seznam_akosti.append("Iná akosť (zadať ručne)")
-    
-    akost_vyber = st.selectbox("Akosť", options=seznam_akosti, key="sel_akost_main")
-    
-    if akost_vyber == "Iná akosť (zadať ručne)":
-        akost_finalna = st.text_input("Názov novej akosti:", key="n_akost_input_text")
+
+    # Ak je vybraná Iná akosť, potrebujeme viac stĺpcov pre zadanie a uloženie
+    if st.session_state.get("sel_akost_main") == "Iná akosť (zadať ručne)":
+        sub_m1, sub_m2, sub_m3, sub_m4 = st.columns([1.5, 1.5, 1, 0.8])
+        with sub_m1:
+            akost_vyber = st.selectbox("Akosť", options=seznam_akosti, key="sel_akost_main")
+        with sub_m2:
+            akost_finalna = st.text_input("Zadať akosť", key="n_akost_input_text")
+        # Výpočet hustoty_auto predtým než ju vložíme do inputu
+        hustota_auto = 0.0
+        if material == "NEREZ": hustota_auto = 8000.0
+        elif material == "OCEĽ": hustota_auto = 7900.0
+        
+        with sub_m3:
+            hustota = st.number_input("Hustota [kg/m3]", min_value=0.0, value=float(hustota_auto), format="%.2f", key="h_new_input")
+        with sub_m4:
+            st.write(" ")
+            if st.button("Uložiť", key="btn_save_mat"):
+                if akost_finalna and hustota > 0:
+                    url_api_hustota = "https://script.google.com/macros/s/AKfycbysapIykA2JulM9882rQmM3tfFvbvrmYDeW-iM5jyR4MTg8ZlNWhTdgV4pGxNhn6JNb/exec"
+                    try:
+                        requests.post(url_api_hustota, json={"material": material, "akost": akost_finalna, "hustota": hustota}, timeout=10)
+                        st.success("Uložené!")
+                        st.cache_data.clear()
+                        st.rerun()
+                    except: st.error("Chyba!")
     else:
-        akost_finalna = akost_vyber
+        # Štandardné zobrazenie, keď je akosť v databáze
+        sub_m1, sub_m2 = st.columns([2, 1])
+        with sub_m1:
+            akost_vyber = st.selectbox("Akosť", options=seznam_akosti, key="sel_akost_main")
+            akost_finalna = akost_vyber
+        
+        # Logika hľadania hustoty pre existujúcu akosť
+        hustota_auto = 0.0
+        if material == "NEREZ": hustota_auto = 8000.0
+        elif material == "OCEĽ": hustota_auto = 7900.0
+        elif material == "FAREBNÉ KOVY":
+            akost_test = str(akost_finalna).replace(',', '.')
+            if akost_test.startswith("3.7"): hustota_auto = 4500.0
+            elif akost_test.startswith("3."): hustota_auto = 2900.0
+            elif akost_test.startswith("2."): hustota_auto = 9000.0
+        elif material == "PLAST":
+            hladana_akost = str(akost_finalna).strip().upper()
+            df_temp = df_materialy.copy()
+            df_temp['akost_up'] = df_temp['akost'].astype(str).str.strip().str.upper()
+            zhoda = df_temp[(df_temp['material'] == "PLAST") & (df_temp['akost_up'] == hladana_akost)]
+            if not zhoda.empty:
+                raw_h = str(zhoda['hustota'].values[0])
+                clean_h = raw_h.replace(',', '').replace(' ', '').replace('\xa0', '').strip()
+                try: hustota_auto = float(clean_h)
+                except: hustota_auto = 0.0
+        
+        with sub_m2:
+            input_key = f"hustota_input_{material}_{akost_finalna}".replace(" ", "_")
+            hustota = st.number_input("Hustota [kg/m3]", min_value=0.0, value=float(hustota_auto), format="%.2f", key=input_key)
 
-hustota_auto = 0.0
-if material == "NEREZ":
-    hustota_auto = 8000.0
-elif material == "OCEĽ":
-    hustota_auto = 7900.0
-elif material == "FAREBNÉ KOVY":
-    akost_test = str(akost_finalna).replace(',', '.')
-    if akost_test.startswith("3.7"): hustota_auto = 4500.0
-    elif akost_test.startswith("3."): hustota_auto = 2900.0
-    elif akost_test.startswith("2."): hustota_auto = 9000.0
-elif material == "PLAST":
-    hladana_akost = str(akost_finalna).strip().upper()
-    df_temp = df_materialy.copy()
-    df_temp['akost_up'] = df_temp['akost'].astype(str).str.strip().str.upper()
-    zhoda = df_temp[(df_temp['material'] == "PLAST") & (df_temp['akost_up'] == hladana_akost)]
-    if not zhoda.empty:
-        raw_h = str(zhoda['hustota'].values[0])
-        clean_h = raw_h.replace(',', '').replace(' ', '').replace('\xa0', '').strip()
-        try: hustota_auto = float(clean_h)
-        except: hustota_auto = 0.0
-
-with m_col3:
-    input_key = f"hustota_input_{material}_{akost_finalna}".replace(" ", "_")
-    hustota = st.number_input("Hustota [kg/m3]", min_value=0.0, value=float(hustota_auto), format="%.2f", key=input_key)
-
-if akost_vyber == "Iná akosť (zadať ručne)" and akost_finalna:
-    if st.button("🚀 Uložiť akosť do Google Sheet"):
-        if hustota > 0:
-            url_api_hustota = "https://script.google.com/macros/s/AKfycbysapIykA2JulM9882rQmM3tfFvbvrmYDeW-iM5jyR4MTg8ZlNWhTdgV4pGxNhn6JNb/exec"
-            try:
-                requests.post(url_api_hustota, json={"material": material, "akost": akost_finalna, "hustota": hustota}, timeout=10)
-                st.success(f"Akosť {akost_finalna} bola uložená!")
-                st.cache_data.clear()
-            except: st.error("Chyba pri ukladaní.")
-
+# Validácia a stop
 if not akost_finalna or hustota <= 0:
     st.warning("Pre pokračovanie vyberte materiál a skontrolujte hustotu.")
     st.stop()
