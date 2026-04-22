@@ -161,11 +161,19 @@ with m_col_rest:
                 if akost_finalna and hustota > 0:
                     url_api_hustota = "https://script.google.com/macros/s/AKfycbysapIykA2JulM9882rQmM3tfFvbvrmYDeW-iM5jyR4MTg8ZlNWhTdgV4pGxNhn6JNb/exec"
                     try:
-                        requests.post(url_api_hustota, json={"material": material, "akost": akost_finalna, "hustota": hustota}, timeout=10)
-                        st.success("Uložené!")
-                        st.cache_data.clear()
-                        st.rerun()
-                    except: st.error("Chyba!")
+                        # Pridaná kontrola statusu
+                        response = requests.post(url_api_hustota, json={"material": material, "akost": akost_finalna, "hustota": hustota}, timeout=10)
+                        if response.status_code == 200:
+                            st.success("Uložené!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(f"Server vrátil chybu: {response.status_code}")
+                    except Exception as e:
+                        # Vypíše skutočnú chybu len ak nastane problém so spojením
+                        st.error(f"Chyba spojenia!")
+                else:
+                    st.warning("Doplňte názov!")
     else:
         # Štandardné zobrazenie, keď je akosť v databáze
         sub_m1, sub_m2 = st.columns([2, 1])
