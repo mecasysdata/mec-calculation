@@ -213,8 +213,9 @@ if not akost_finalna or hustota <= 0:
 st.divider()
 
 # ==============================================================================
+
 # ==============================================================================
-# SEKCIA 8: SKLADOVÉ ZÁSOBY (S DEBUG MÓDOM)
+# SEKCIA 8: SKLADOVÉ ZÁSOBY A KALKULÁCIA (SPRÁVNY LINK)
 # ==============================================================================
 st.divider()
 st.subheader("📦 Skladové zásoby a kalkulácia")
@@ -225,54 +226,54 @@ def get_ciste_dims(r1, r2, r3):
         return sorted([v for v in vals if v > 0], reverse=True)
     except: return []
 
-# Tvoja URL (skontroluj, či je v nej gid=0 pre Hárok1)
-sheet_sklad_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRcCPwLT_Cm8Xpj4urw7DUa5FGGyWiCEKKl8ySUEnGtFjsKzbvwtw6MURs1TyqasHhAJsWcdP6d3Q7O/pub?gid=0&single=true&output=csv"
+# TVOJ NOVÝ LINK NA HÁROK1
+sheet_sklad_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQf4EiqZt1grkazJgfYWVhG0M8FGLNCjaGk6dcXhO3r04JQuZ9Qxv1jelDo3c8hBLy7Ny5C1pZqvbfS/pub?output=csv"
 
-@st.cache_data(ttl=10) # Skrátený čas pre testovanie
+@st.cache_data(ttl=30)
 def nacti_sklad(url):
     try:
         df = pd.read_csv(url)
-        df.columns = df.columns.str.strip()
+        df.columns = df.columns.str.strip() # Odstráni medzery v názvoch
+        # Prevod na čísla pre stĺpce, kde potrebujeme počítať
         for col in ['Rozmer1', 'Rozmer2', 'Rozmer3', 'Cena']:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
         return df
     except Exception as e:
-        st.error(f"Chyba pripojenia: {e}")
+        st.error(f"Nepodarilo sa načítať sklad: {e}")
         return pd.DataFrame()
 
 df_sklad = nacti_sklad(sheet_sklad_url)
 
-# --- DEBUG KONTROLA (Ak nič nevidíš, toto nám povie prečo) ---
-if df_sklad.empty:
-    st.error("⚠️ Tabuľka skladu sa načítala ako prázdna. Skontroluj, či je Google Sheet publikovaný na web.")
-elif 'Tvar' not in df_sklad.columns:
-    st.error(f"⚠️ Stĺpec 'Tvar' nebol nájdený. Nájdené stĺpce sú: {list(df_sklad.columns)}")
-else:
-    # --- TU ZAČÍNA SAMOTNÁ APLIKÁCIA ---
+# Kontrola prítomnosti stĺpca Tvar (aby sme vedeli, že sme na dobrom hárku)
+if not df_sklad.empty and 'Tvar' in df_sklad.columns:
+    
+    # 1. RIADOK: Výber tvaru a info
     c1, c2 = st.columns(2)
     with c1:
-        # Získame unikátne tvary zo stĺpca Tvar
         zoznam_tvarov = sorted(df_sklad['Tvar'].unique().tolist())
-        vybrany_tvar = st.selectbox("Hľadaný tvar polotovaru", options=zoznam_tvarov, key="sel_tvar_final")
+        vybrany_tvar = st.selectbox("Hľadaný tvar polotovaru", options=zoznam_tvarov, key="sb_tvar")
     with c2:
-        st.info(f"Hľadáme: **{material}** | **{akost_finalna}**")
+        st.info(f"Hľadáme pre: **{material} | {akost_finalna}**")
 
-    # LOGIKA VÝBERU
+    # 2. LOGIKA FILTROVANIA (Porovnanie so zadaním z ITEM sekcie)
     zadane_dims = get_ciste_dims(rozmer_D, rozmer_S, rozmer_V)
     mask = (df_sklad['Material'] == material) & (df_sklad['Tvar'] == vybrany_tvar)
     df_potencial = df_sklad[mask].copy()
     
     vhodne_polotovary = []
     for _, row in df_potencial.iterrows():
-        # Kontrola akosti
+        # Filtrujeme podľa akosti (zhoda textu)
         if str(akost_finalna).strip().upper() in str(row['Akost']).upper():
             sklad_dims = get_ciste_dims(row['Rozmer1'], row['Rozmer2'], row['Rozmer3'])
+            
+            # Musí mať aspoň toľko rozmerov ako zadanie a každý musí byť >=
             if len(sklad_dims) >= len(zadane_dims):
                 match = True
                 for i in range(len(zadane_dims)):
                     if sklad_dims[i] < zadane_dims[i]:
                         match = False; break
+                
                 if match:
                     odpad = sum(sklad_dims) - sum(zadane_dims)
                     label = f"{row['Názov']} ({'x'.join(map(str, sklad_dims))} mm) | {row['Cena']} €/m"
@@ -280,42 +281,49 @@ else:
 
     vhodne_polotovary = sorted(vhodne_polotovary, key=lambda x: x['odpad'])
 
+    # 3. RIADOK: Výber kusu a ceny
     if vhodne_polotovary:
-        vyber = st.selectbox("Vyberte polotovar zo skladu:", vhodne_polotovary, format_func=lambda x: x['label'], key="final_sklad_vyber")
+        vyber = st.selectbox("Dostupné polotovary (zoradené od najvhodnejšieho):", 
+                             vhodne_polotovary, format_func=lambda x: x['label'], key="sb_sklad")
         
-        # Prepočet ceny
         c_m = float(vyber['cena'])
         c_ks = c_m * (rozmer_L / 1000)
-        c_total = c_ks * pocet_ks
+        c_celkom = c_ks * pocet_ks
         
         st.write("")
         p1, p2 = st.columns(2)
         with p1: st.metric("Cena za meter", f"{c_m:.2f} €/m")
         with p2: st.metric("Cena materiálu na 1 ks", f"{c_ks:.2f} €", f"L={rozmer_L}mm")
-        st.success(f"💰 **Celková cena materiálu: {c_total:.2f} €**")
-    else:
-        st.warning("❌ Žiadny polotovar nespĺňa zadané rozmery alebo akosť.")
-
-    # FORMULÁR PRE ZÁPIS
-    with st.expander("➕ Pridať nový polotovar do skladu"):
-        f1, f2, f3, f4 = st.columns(4)
-        with f1: nr1 = st.number_input("Rozmer 1", value=0.0, key="f_nr1")
-        with f2: nr2 = st.number_input("Rozmer 2", value=0.0, key="f_nr2")
-        with f3: nr3 = st.number_input("Rozmer 3", value=0.0, key="f_nr3")
-        with f4: ncena = st.number_input("Cena €/m", value=0.0, key="f_ncena")
         
-        f5, f6 = st.columns([3, 1])
-        with f5: nnazov = st.text_input("Názov polotovaru", key="f_nnazov")
-        with f6:
-            st.write(" ")
-            if st.button("🚀 Uložiť", key="f_save"):
-                if nnazov and ncena > 0:
-                    API_URL = "https://script.google.com/macros/s/AKfycbzyZxjTplhk010oq7ozvovAGx5lRx72PjqUvoJUrNazx_jRfq7lqfQgbeHYG9O-NCcX/exec"
-                    payload = {
-                        "Názov": nnazov, "Akost": akost_finalna, "Material": material,
-                        "Cena": ncena, "Tvar": vybrany_tvar,
-                        "Rozmer1": nr1, "Rozmer2": nr2, "Rozmer3": nr3
-                    }
-                    if requests.post(API_URL, json=payload).status_code == 200:
-                        st.success("Uložené!"); st.cache_data.clear(); st.rerun()
-                else: st.error("Chýba názov alebo cena!")
+        st.success(f"💰 **Celková cena materiálu: {c_celkom:.2f} €**")
+    else:
+        st.warning(f"❌ V sklade sa nenašiel vhodný rozmer pre {vybrany_tvar} {material} {akost_finalna}.")
+
+    # 4. FORMULÁR PRE ZÁPIS NOVÉHO POLOTOVARU
+    with st.expander("➕ Pridať nový polotovar do databázy"):
+        f1, f2, f3, f4 = st.columns(4)
+        with f1: nr1 = st.number_input("Rozmer 1 (G)", value=0.0, key="in_r1")
+        with f2: nr2 = st.number_input("Rozmer 2 (H)", value=0.0, key="in_r2")
+        with f3: nr3 = st.number_input("Rozmer 3 (I)", value=0.0, key="in_r3")
+        with f4: ncena = st.number_input("Cena €/m (E)", value=0.0, key="in_cena")
+        
+        nnazov = st.text_input("Názov polotovaru (B)", key="in_nazov")
+        
+        if st.button("🚀 Uložiť do skladu", key="btn_save"):
+            if nnazov and ncena > 0:
+                API_URL = "https://script.google.com/macros/s/AKfycbzyZxjTplhk010oq7ozvovAGx5lRx72PjqUvoJUrNazx_jRfq7lqfQgbeHYG9O-NCcX/exec"
+                payload = {
+                    "Názov": nnazov, "Akost": akost_finalna, "Material": material,
+                    "Cena": ncena, "Tvar": vybrany_tvar,
+                    "Rozmer1": nr1, "Rozmer2": nr2, "Rozmer3": nr3
+                }
+                if requests.post(API_URL, json=payload).status_code == 200:
+                    st.success("Úspešne uložené!"); st.cache_data.clear(); st.rerun()
+            else: st.error("Doplňte názov a cenu!")
+
+else:
+    # Ak stĺpec Tvar chýba, vypíšeme čo Python v linku vidí
+    if df_sklad.empty:
+        st.error("Načítaná tabuľka je prázdna. Skontroluj publikovanie.")
+    else:
+        st.error(f"Chyba: Stĺpec 'Tvar' nenájdený. Nájdené stĺpce: {list(df_sklad.columns)}")
