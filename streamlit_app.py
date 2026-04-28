@@ -214,15 +214,22 @@ st.divider()
 
 # ==============================================================================
 # ==============================================================================
-# SEKCIA 8: FINÁLNA KALKULÁCIA MATERIÁLU A DYNAMICKÝ SKLAD
+# SEKCIA 8: TECHNICKÁ KALKULÁCIA MATERIÁLU (PODĽA TVARU A ROZMEROV)
 # ==============================================================================
 st.divider()
-st.subheader("📋 Kalkulácia materiálu")
+st.subheader("📦 Výber polotovaru a výpočet ceny")
 
-# Načítanie skladu
+# 1. POMOCNÁ LOGIKA PRE ROZMERY (Metóda obálky)
+def get_dims_sorted(r1, r2, r3):
+    try:
+        vals = [float(r1), float(r2), float(r3)]
+        return sorted([v for v in vals if v > 0], reverse=True)
+    except: return []
+
+# 2. NAČÍTANIE DÁT (Hárok1)
 sheet_sklad_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQf4EiqZt1grkazJgfYWVhG0M8FGLNCjaGk6dcXhO3r04JQuZ9Qxv1jelDo3c8hBLy7Ny5C1pZqvbfS/pub?output=csv"
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=10)
 def nacti_sklad_final(url):
     try:
         df = pd.read_csv(url)
@@ -236,90 +243,102 @@ def nacti_sklad_final(url):
 df_sklad = nacti_sklad_final(sheet_sklad_url)
 
 if not df_sklad.empty:
-    # 1. VÝBER MATERIÁLU (Z tvojej predošlej sekcie)
-    st.info(f"Aktuálna kategória: **{material}**")
+    # --- KROK 1: VÝBER PARAMETROV (Tvar -> Materiál -> Akosť) ---
+    c1, c2, c3 = st.columns(3)
     
-    # 2. VÝBER AKOSTI (Len tie, ktoré patria k materiálu)
-    df_kat = df_sklad[df_sklad['Material'] == material]
-    dostupne_akosti = sorted(df_kat['Akost'].unique().tolist())
-    
-    col_akost, col_tvar = st.columns(2)
-    with col_akost:
-        vybrana_akost_sklad = st.selectbox("Vyberte akosť:", options=["-- Vybrať --"] + dostupne_akosti)
-    
-    if vybrana_akost_sklad != "-- Vybrať --":
-        # 3. VÝBER KONKRÉTNEHO ROZMERU
-        df_akost = df_kat[df_kat['Akost'] == vybrana_akost_sklad].copy()
-        df_akost['rozmer_text'] = df_akost.apply(lambda r: f"{r['Názov']} ({r['Rozmer1']}x{r['Rozmer2']}x{r['Rozmer3']})", axis=1)
+    with c1:
+        # Tvoj definovaný zoznam tvarov
+        zoznam_tvarov = ["6HR", "4HR", "I", "U", "L", "TR", "KR", "PL", "JAKL", "T"]
+        vybrany_tvar = st.selectbox("Tvar polotovaru:", options=zoznam_tvarov)
         
-        polotovary_list = df_akost.to_dict('records')
-        vybrany_polotovar = st.selectbox("Vyberte rozmer polotovaru:", 
-                                         options=polotovary_list + [{"rozmer_text": "➕ Iný (Pridať nový...)"}],
-                                         format_func=lambda x: x['rozmer_text'])
+    with c2:
+        # Filtrujeme dostupné materiály pre tento tvar
+        mats_v_tvare = sorted(df_sklad[df_sklad['Tvar'] == vybrany_tvar]['Material'].unique().tolist())
+        v_mat = st.selectbox("Materiál:", options=mats_v_tvare if mats_v_tvare else [material])
+        
+    with c3:
+        # Filtrujeme akosti pre tento tvar a materiál
+        aks_v_tvare = sorted(df_sklad[(df_sklad['Tvar'] == vybrany_tvar) & (df_sklad['Material'] == v_mat)]['Akost'].unique().tolist())
+        v_akost = st.selectbox("Akosť:", options=aks_v_tvare if aks_v_tvare else [akost_finalna])
 
-        # PRÍPAD A: POLOTOVAR EXISTUJE
-        if vybrany_polotovar and vybrany_polotovar['rozmer_text'] != "➕ Iný (Pridať nový...)":
-            # Kontrola rozmerov
-            def check_dims(row):
-                s = sorted([float(row['Rozmer1']), float(row['Rozmer2']), float(row['Rozmer3'])], reverse=True)
-                z = sorted([float(rozmer_D), float(rozmer_S), float(rozmer_V)], reverse=True)
-                return all(s[i] >= z[i] for i in range(len([v for v in z if v > 0])))
+    # --- KROK 2: LOGIKA ROZMEROV ---
+    # Rozmery dielu (to, čo chce technológ vyrobiť)
+    diel_dims = get_dims_sorted(rozmer_D, rozmer_S, rozmer_V)
+    
+    # Filtrujeme položky skladu, ktoré presne sedia na Tvar, Materiál a Akosť
+    df_potencial = df_sklad[
+        (df_sklad['Tvar'] == vybrany_tvar) & 
+        (df_sklad['Material'] == v_mat) & 
+        (df_sklad['Akost'] == v_akost)
+    ].copy()
 
-            if check_dims(vybrany_polotovar):
-                st.success("✅ Rozmerovo vyhovuje")
-                potvrdit = st.button("✅ Potvrdiť materiál a zobraziť cenu")
-                
-                if potvrdit:
-                    c_m = float(vybrany_polotovar['Cena'])
-                    c_ks = c_m * (rozmer_L / 1000)
-                    
-                    st.divider()
-                    res1, res2, res3 = st.columns([2, 1, 1])
-                    with res1: st.write(f"📦 Polotovar: **{vybrany_polotovar['Názov']}**")
-                    with res2: st.write(f"📏 Cena: **{c_m:.2f} €/m**")
-                    with res3: st.write(f"💰 Cena/ks: **{c_ks:.2f} €**")
-            else:
-                st.error("❌ Polotovar je prísliš malý pre zadanie!")
+    vhodne_moznosti = []
+    for _, row in df_potencial.iterrows():
+        sklad_dims = get_dims_sorted(row['Rozmer1'], row['Rozmer2'], row['Rozmer3'])
+        
+        # Porovnanie: Musí mať dosť rozmerov a každý musí byť väčší alebo rovný dielu
+        if len(sklad_dims) >= len(diel_dims):
+            if all(sklad_dims[i] >= diel_dims[i] for i in range(len(diel_dims))):
+                odpad = sum(sklad_dims) - sum(diel_dims)
+                label = f"{row['Názov']} ({'x'.join(map(str, sklad_dims))} mm)"
+                vhodne_moznosti.append({
+                    "label": label, 
+                    "cena_m": float(row['Cena']), 
+                    "odpad": odpad,
+                    "nazov": row['Názov']
+                })
 
-        # PRÍPAD B: PRIDANIE NOVÉHO (Ak nič nesedí)
-        else:
-            st.warning("Zadajte parametre pre nový polotovar:")
-            with st.container():
-                # Všetky stĺpce zo sheetu
-                r1_1, r1_2, r1_3, r1_4 = st.columns(4)
-                with r1_1: new_n = st.text_input("Názov (B)")
-                with r1_2: new_a = st.text_input("Akosť (C)", value=vybrana_akost_sklad)
-                with r1_3: new_m = st.text_input("Materiál (D)", value=material)
-                with r1_4: new_c = st.number_input("Cena €/m (E)", min_value=0.0, step=0.1)
-                
-                r2_1, r2_2, r2_3, r2_4 = st.columns(4)
-                with r2_1: new_t = st.selectbox("Tvar (F)", ["KR", "6HR", "STV", "RÚR", "PLECH"])
-                with r2_2: new_r1 = st.number_input("Rozmer 1 (G)", min_value=0.0)
-                with r2_3: new_r2 = st.number_input("Rozmer 2 (H)", min_value=0.0)
-                with r2_4: new_r3 = st.number_input("Rozmer 3 (I)", min_value=0.0)
+    # Zoradenie podľa najmenšieho odpadu
+    vhodne_moznosti = sorted(vhodne_moznosti, key=lambda x: x['odpad'])
 
-                if st.button("💾 Uložiť do sheetu a použiť"):
-                    if new_n and new_c > 0:
-                        API = "https://script.google.com/macros/s/AKfycbzyZxjTplhk010oq7ozvovAGx5lRx72PjqUvoJUrNazx_jRfq7lqfQgbeHYG9O-NCcX/exec"
-                        payload = {
-                            "Názov": new_n, "Akost": new_a, "Material": new_m,
-                            "Cena": new_c, "Tvar": new_t, "Rozmer1": new_r1,
-                            "Rozmer2": new_r2, "Rozmer3": new_r3
-                        }
-                        try:
-                            requests.post(API, json=payload, timeout=10)
-                            st.success(f"Uložené! Cena: {new_c:.2f} €/m | Na kus: {(new_c * (rozmer_L/1000)):.2f} €")
-                            st.cache_data.clear()
-                            # Tu sa zobrazí cena hneď po uložení
-                            res1, res2, res3 = st.columns([2, 1, 1])
-                            with res1: st.write(f"📦 Nový: **{new_n}**")
-                            with res2: st.write(f"📏 Cena: **{new_c:.2f} €/m**")
-                            with res3: st.write(f"💰 Cena/ks: **{(new_c * (rozmer_L/1000)):.2f} €**")
-                        except:
-                            st.error("Chyba pri ukladaní.")
-                    else:
-                        st.error("Musíte vyplniť Názov a Cenu!")
-# ==============================================================================
+    # --- KROK 3: VÝBER A ZOBRAZENIE CIEN ---
+    if vhodne_moznosti:
+        vyber = st.selectbox("Dostupné rozmery (od najvhodnejšieho):", 
+                             options=vhodne_moznosti + [{"label": "➕ Iný (Pridať nový...)"}],
+                             format_func=lambda x: x['label'])
 
-                else: st.error("Chýba akosť alebo cena!")
+        if vyber['label'] != "➕ Iný (Pridať nový...)":
+            st.success(f"✅ Rozmer vyhovuje pre diel {' x '.join(map(str, diel_dims))} mm")
+            
+            # Výpočty
+            c_m = vyber['cena_m']
+            c_ks = c_m * (rozmer_L / 1000)
+            c_celkom = c_ks * pocet_ks
+            
+            # Zobrazenie výsledkov v jednom riadku
+            st.write("---")
+            r1, r2, r3 = st.columns([2, 1, 1])
+            with r1: st.write(f"💎 Polotovar: **{vyber['nazov']}**")
+            with r2: st.write(f"📏 Cena: **{c_m:.2f} €/m**")
+            with r3: st.write(f"📦 Cena/ks: **{c_ks:.2f} €**")
+            st.info(f"Celková cena za {pocet_ks} ks: **{c_celkom:.2f} €**")
+    else:
+        st.warning(f"❌ V sklade nie je vhodný rozmer pre {vybrany_tvar} {v_mat} {v_akost}.")
+
+    # --- KROK 4: FORMULÁR PRE NOVÝ POLOTOVAR (ak nič nesedí) ---
+    with st.expander("➕ Pridať nový polotovar do skladu"):
+        st.write("Vyplňte všetky údaje pre nový záznam:")
+        f1, f2, f3, f4 = st.columns(4)
+        with f1: n_nazov = st.text_input("Názov (B)")
+        with f2: n_akost = st.text_input("Akosť (C)", value=v_akost)
+        with f3: n_mat = st.text_input("Materiál (D)", value=v_mat)
+        with f4: n_cena = st.number_input("Cena €/m (E)", min_value=0.0)
+        
+        f5, f6, f7, f8 = st.columns(4)
+        with f5: n_tvar = st.selectbox("Tvar (F)", options=zoznam_tvarov, index=zoznam_tvarov.index(vybrany_tvar))
+        with f6: n_r1 = st.number_input("Rozmer 1 (G)")
+        with f7: n_r2 = st.number_input("Rozmer 2 (H)")
+        with f8: n_r3 = st.number_input("Rozmer 3 (I)")
+
+        if st.button("🚀 Uložiť a použiť cenu"):
+            if n_nazov and n_cena > 0:
+                API_URL = "https://script.google.com/macros/s/AKfycbzyZxjTplhk010oq7ozvovAGx5lRx72PjqUvoJUrNazx_jRfq7lqfQgbeHYG9O-NCcX/exec"
+                payload = {
+                    "Názov": n_nazov, "Akost": n_akost, "Material": n_mat,
+                    "Cena": n_cena, "Tvar": n_tvar, "Rozmer1": n_r1,
+                    "Rozmer2": n_r2, "Rozmer3": n_r3
+                }
+                requests.post(API_URL, json=payload)
+                st.success(f"Uložené! Cena/m: {n_cena:.2f} € | Cena/ks: {(n_cena * (rozmer_L/1000)):.2f} €")
+                st.cache_data.clear()
 
