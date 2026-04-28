@@ -212,3 +212,140 @@ if not akost_finalna or hustota <= 0:
 
 st.divider()
 
+# ==============================================================================
+# SEKCIA 8: SKLADOVÉ ZÁSOBY A KALKULÁCIA MATERIÁLU
+# ==============================================================================
+st.divider()
+st.subheader("📦 Skladové zásoby a kalkulácia")
+
+# 1. POMOCNÁ FUNKCIA (Logika čistenia a zoradenia rozmerov)
+def get_ciste_dims(r1, r2, r3):
+    """Odstráni nuly a zoradí rozmery od najväčšieho po najmenší"""
+    try:
+        vals = [float(r1), float(r2), float(r3)]
+        return sorted([v for v in vals if v > 0], reverse=True)
+    except:
+        return []
+
+# 2. NAČÍTANIE DÁT SKLADU (Z tvojho CSV exportu)
+sheet_sklad_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRcCPwLT_Cm8Xpj4urw7DUa5FGGyWiCEKKl8ySUEnGtFjsKzbvwtw6MURs1TyqasHhAJsWcdP6d3Q7O/pub?gid=0&single=true&output=csv"
+
+@st.cache_data(ttl=60)
+def nacti_sklad(url):
+    try:
+        df = pd.read_csv(url)
+        df.columns = df.columns.str.strip()
+        # Prevod rozmerov a ceny na čísla
+        for col in ['Rozmer1', 'Rozmer2', 'Rozmer3', 'Cena']:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        return df
+    except:
+        return pd.DataFrame()
+
+df_sklad = nacti_sklad(sheet_sklad_url)
+
+if not df_sklad.empty:
+    # RIADOK A: Výber tvaru a informácia
+    c_tvar, c_info = st.columns([2, 2])
+    
+    with c_tvar:
+        zoznam_tvarov = sorted(df_sklad['Tvar'].unique().tolist())
+        vybrany_tvar = st.selectbox("Hľadaný tvar", options=zoznam_tvarov, key="sklad_tvar_sel")
+    
+    with c_info:
+        st.info(f"Materiál: **{material}** | Akosť: **{akost_finalna}**")
+
+    # LOGIKA FILTROVANIA
+    # Získame vyčistené rozmery od technológa
+    zadane_dims = get_ciste_dims(rozmer_D, rozmer_S, rozmer_V)
+    
+    # Filter na materiál a tvar
+    mask = (df_sklad['Material'] == material) & (df_sklad['Tvar'] == vybrany_tvar)
+    df_potencial = df_sklad[mask].copy()
+    
+    vhodne_polotovary = []
+    for _, row in df_potencial.iterrows():
+        # Kontrola, či sa akosť zhoduje (aspoň čiastočne)
+        if str(akost_finalna).strip().upper() in str(row['Akost']).upper():
+            sklad_dims = get_ciste_dims(row['Rozmer1'], row['Rozmer2'], row['Rozmer3'])
+            
+            # Musí mať aspoň toľko rozmerov ako zadanie
+            if len(sklad_dims) >= len(zadane_dims):
+                match = True
+                for i in range(len(zadane_dims)):
+                    if sklad_dims[i] < zadane_dims[i]:
+                        match = False
+                        break
+                
+                if match:
+                    odpad = sum(sklad_dims) - sum(zadane_dims)
+                    label = f"{row['Názov']} ({'x'.join(map(str, sklad_dims))} mm) | {row['Cena']} €/m"
+                    vhodne_polotovary.append({"label": label, "cena": row['Cena'], "odpad": odpad})
+
+    # Zoradenie podľa najvhodnejšieho kusa
+    vhodne_polotovary = sorted(vhodne_polotovary, key=lambda x: x['odpad'])
+
+    # RIADOK B: Výber a výpočet ceny
+    if vhodne_polotovary:
+        vyber = st.selectbox("Dostupné v sklade (zoradené od najvhodnejšieho):", 
+                             options=vhodne_polotovary, 
+                             format_func=lambda x: x['label'])
+        
+        c_m = float(vyber['cena'])
+        c_ks = c_m * (rozmer_L / 1000)
+        c_celkom = c_ks * pocet_ks
+        
+        st.write("")
+        p1, p2 = st.columns(2)
+        with p1:
+            st.metric("Cena za bežný meter", f"{c_m:.2f} €/m")
+        with p2:
+            st.metric("Cena materiálu na 1 ks", f"{c_ks:.2f} €", f"L = {rozmer_L} mm", delta_color="off")
+        
+        st.success(f"💰 **Celková cena materiálu pre objednávku: {c_celkom:.2f} €**")
+    else:
+        st.warning(f"❌ V sklade sa nenašiel vhodný rozmer pre {vybrany_tvar} {material} {akost_finalna}.")
+
+    # RIADOK C: FORMULÁR PRE NOVÝ MATERIÁL (Zápis do Sheetu)
+    with st.expander("➕ Pridať nový polotovar do skladu"):
+        st.write("Vyplňte údaje pre zápis do databázy:")
+        
+        f1, f2, f3, f4 = st.columns(4)
+        with f1: n_r1 = st.number_input("Rozmer 1 (G)", value=0.0, key="new_r1")
+        with f2: n_r2 = st.number_input("Rozmer 2 (H)", value=0.0, key="new_r2")
+        with f3: n_r3 = st.number_input("Rozmer 3 (I)", value=0.0, key="new_r3")
+        with f4: n_cena = st.number_input("Cena za meter (E)", value=0.0, key="new_price")
+        
+        f5, f6 = st.columns([3, 1])
+        with f5: n_nazov = st.text_input("Názov polotovaru (B)", placeholder="napr. Tyč 6HR 27", key="new_name")
+        with f6:
+            st.write(" ")
+            if st.button("🚀 Uložiť polotovar", key="save_to_sklad_btn"):
+                if n_nazov and n_cena > 0:
+                    # TVOJA FINÁLNA URL ADRESA APPS SCRIPTU
+                    API_SKLAD_URL = "https://script.google.com/macros/s/AKfycbzyZxjTplhk010oq7ozvovAGx5lRx72PjqUvoJUrNazx_jRfq7lqfQgbeHYG9O-NCcX/exec"
+                    
+                    payload = {
+                        "Názov": n_nazov,
+                        "Akost": akost_finalna,
+                        "Material": material,
+                        "Cena": n_cena,
+                        "Tvar": vybrany_tvar,
+                        "Rozmer1": n_r1,
+                        "Rozmer2": n_r2,
+                        "Rozmer3": n_r3
+                    }
+                    
+                    try:
+                        res = requests.post(API_SKLAD_URL, json=payload, timeout=10)
+                        if res.status_code == 200:
+                            st.success("✅ Úspešne uložené do Google Sheetu!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error(f"Chyba servera: {res.status_code}")
+                    except:
+                        st.error("Chyba spojenia!")
+                else:
+                    st.warning("Vyplňte názov a cenu!")
