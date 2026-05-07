@@ -99,3 +99,14 @@ with col6:
         key="pocet_input",
         help="Zadajte celkové množstvo kusov (minimálne 1)."
     )
+with col7:
+    # Atribút: narocnost
+    # UX zobrazenie: Náročnosť
+    # Výber z možností 1 až 5
+    narocnost = st.selectbox(
+        "Náročnosť", 
+        options=[1, 2, 3, 4, 5], 
+        index=0,  # Predvolene vybratá prvá možnosť (1)
+        key="narocnost_input",
+        help="Vyberte stupeň náročnosti od 1 (najnižšia) po 5 (najvyššia)."
+    )
