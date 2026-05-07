@@ -76,10 +76,12 @@ else:
         st.text_input("Krajina Zákazníka", value=krajina_hodnota, disabled=True)
 
 st.divider()
+st.divider()
 
 # --- 5. RIADOK: POLOŽKA (ITEM) ---
+# PONECHAJ LEN TENTO JEDEN RIADOK SO STĹPCAMI (8)
 col5, col6, col7, col8, col9, col10, col11, col12 = st.columns(8)
- 
+
 with col5:
     item = st.text_input("ITEM", key="item_input")
 
@@ -87,7 +89,7 @@ with col6:
     pocet_kusov = st.number_input("Počet kusov", min_value=1, value=1, step=1, key="pocet_input")
 
 with col7:
-    narocnost = st.selectbox("Náročnosť", options=[1, 2, 3, 4, 5], index=0, key="narocnost_input")
+    narocnost = st.selectbox("Náročnosť", options=[1, 2, 3, 4, 5], key="narocnost_input")
 
 with col8:
     tvar = st.selectbox("Tvar", options=["STV", "KR"], key="tvar_input")
@@ -109,10 +111,7 @@ else:
 
 st.divider()
 
-# --- 6. RIADOK: MATERIÁL, AKOSŤ, POLOTOVAR ---
-material_sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQf4EiqZt1grkazJgfYWVhG0M8FGLNCjaGk6dcXhO3r04JQuZ9Qxv1jelDo3c8hBLy7Ny5C1pZqvbfS/pub?output=csv"
-df_mat = pd.read_csv(material_sheet_url)
-
+# --- 6. RIADOK: MATERIÁL A AKOSŤ ---
 WEB_APP_MAT_URL = "https://script.google.com/macros/s/AKfycbzyZxjTplhk010oq7ozvovAGx5lRx72PjqUvoJUrNazx_jRfq7lqfQgbeHYG9O-NCcX/exec"
 
 col_m1, col_m2, col_m3 = st.columns(3)
@@ -131,23 +130,19 @@ with col_m3:
     polotovar = st.selectbox("Tvar Polotovaru", zoznam_vsetkych_tvarov, key="polo_select_vsetky")
 
 if vyber_akosti == "+ Pridať novú akosť":
-    st.info(f"✨ Vytvárate novú akosť pre materiál: {material}")
-    
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
-    with c1:
-        nova_akost = st.text_input("Názov novej akosti")
-    with c2:
+    st.info(f"✨ Vytvárate novú akosť pre: {material}")
+    c_n1, c_n2, c_n3, c_n4, c_n5, c_n6 = st.columns(6)
+    with c_n1:
+        nova_akost = st.text_input("Názov akosti")
+    with c_n2:
         nova_cena = st.number_input("Cena (€/kg)", min_value=0.0, format="%.2f")
-    with c3:
-        novy_tvar_zapis = st.selectbox("Tvar pre zápis", zoznam_vsetkych_tvarov, key="novy_tvar_zapis")
-    with c4:
-        r1 = st.number_input("Rozmer 1", min_value=0.0, format="%.1f")
-    with c5:
-        r2 = st.number_input("Rozmer 2", min_value=0.0, format="%.1f")
-    with c6:
-        r3 = st.number_input("Rozmer 3", min_value=0.0, format="%.1f")
+    with c_n3:
+        novy_tvar_zapis = st.selectbox("Tvar pre zápis", zoznam_vsetkych_tvarov, key="nz_tvar")
+    with c_n4: r1 = st.number_input("R1", min_value=0.0)
+    with c_n5: r2 = st.number_input("R2", min_value=0.0)
+    with c_n6: r3 = st.number_input("R3", min_value=0.0)
 
-    if st.button("💾 Uložiť novú akosť do databázy", type="primary"):
+    if st.button("💾 Uložiť novú akosť", type="primary"):
         if nova_akost.strip():
             nova_data = {
                 "Názov": item,
@@ -160,16 +155,13 @@ if vyber_akosti == "+ Pridať novú akosť":
                 "Rozmer3": r3
             }
             try:
+                # Tu používame tvoju URL
                 response = requests.post(WEB_APP_MAT_URL, json=nova_data)
                 if response.status_code == 200:
-                    st.success(f"Akosť '{nova_akost}' úspešne uložená!")
+                    st.success("Uložené!")
                     st.cache_data.clear()
                 else:
-                    st.error("Chyba pri ukladaní.")
+                    st.error(f"Chyba {response.status_code}: {response.text}")
             except Exception as e:
-                st.error(f"Error: {e}")
-        else:
-            st.warning("⚠️ Zadajte názov novej akosti!")
-    akost = nova_akost
-else:
-    akost = vyber_akosti
+                st.error(f"Spojenie zlyhalo: {e}")
+
