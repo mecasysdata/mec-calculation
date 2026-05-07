@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import requests
-import re
+import datetime
 
 # --- 1. NASTAVENIA ---
 st.set_page_config(layout="wide", page_title="MEC Calculation")
@@ -22,59 +22,56 @@ df = pd.read_csv(sheet_url)
 
 # Príprava zoznamu zákazníkov (zoradený abecedne)
 zoznam_zakaznikov = sorted(df['zakaznik'].unique())
+
 # --- 3. RIADOK S ATRIBÚTMI ---
-# Vytvoríme si stĺpce, aby sme mohli dávať prvky vedľa seba
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    # Atribút Dátum: 
-    # - label: "Dátum" (názov políčka)
-    # - value: defaultne nastavený na dnešok (datetime.date.today())
-    import datetime
     datum = st.date_input("Dátum", datetime.date.today())
 
 with col2:
-    # Atribút Ponuka:
-    # - label: "Označenie CP" (názov, ktorý uvidí používateľ)
-    # - value: "" (necháme prázdne, aby používateľ mohol písať)
     ponuka = st.text_input("Označenie CP")
+
 # --- LOGIKA PRE ZOZNAM ZÁKAZNÍKOV ---
-# Pridáme možnosť pre nového zákazníka na začiatok zoznamu
 moznosti_zakaznikov = ["+ Pridať nového zákazníka"] + zoznam_zakaznikov
 
 with col3:
     vyber = st.selectbox("Názov Zákazníka", moznosti_zakaznikov)
 
-# --- LOGIKA ROZHODOVANIA ---
-# --- LOGIKA ROZHODOVANIA (Zobrazenie v col3 a col4) ---
+# --- KONFIGURÁCIA UKLADANIA ---
+WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwNR33wxSNXJFo9-o2otM-mdKQE22s3i3y5n08dY7eogGhhKDTasiPn3zaOoSihppTq/exec"
+
+# --- LOGIKA ROZHODOVANIA (Opravené poradie a odstránená duplicita) ---
 if vyber == "+ Pridať nového zákazníka":
     with col3:
         zakaznik = st.text_input("Zadajte meno nového zákazníka", key="new_cust_name")
-        
-        # Vytvoríme tlačidlo hneď pod menom alebo vedľa neho
-        # Ak ho chceš presne vedľa, môžeme tu spraviť mini-stĺpce:
-        st.markdown(" ") # Malá medzera pre zarovnanie
+    
+    with col4:
+        # Najprv vytvoríme krajinu, aby ju tlačidlo neskôr poznalo
+        krajina_hodnota = st.text_input("Krajina Zákazníka (manuálne)", key="new_cust_country")
+        lojalita = 0.5
+
+    with col3:
+        # Tlačidlo je až TU, aby videlo premennú 'krajina_hodnota' z riadku vyššie
+        st.markdown(" ") 
         if st.button("💾 Uložiť do databázy", use_container_width=True, type="primary"):
             if zakaznik.strip() and krajina_hodnota.strip():
                 novy_zakaznik_data = {"zakaznik": zakaznik, "krajina": krajina_hodnota}
                 try:
                     response = requests.post(WEB_APP_URL, json=novy_zakaznik_data)
                     if response.status_code == 200:
-                        st.success("Uložené!")
+                        st.success(f"Zákazník '{zakaznik}' uložený!")
+                        st.balloons()
                         st.cache_data.clear()
                     else:
-                        st.error("Chyba!")
+                        st.error("Chyba pri ukladaní!")
                 except Exception as e:
                     st.error(f"Error: {e}")
             else:
-                st.warning("Vyplňte údaje!")
-
-    with col4:
-        krajina_hodnota = st.text_input("Krajina Zákazníka (manuálne)", key="new_cust_country")
-        lojalita = 0.5
+                st.warning("⚠️ Vyplňte meno aj krajinu!")
 
 else:
-    # REŽIM: EXISTUJÚCI ZÁKAZNÍK (nezmenené)
+    # REŽIM: EXISTUJÚCI ZÁKAZNÍK
     data_zakaznika = df[df['zakaznik'] == vyber].iloc[0]
     zakaznik = vyber
     krajina_hodnota = str(data_zakaznika['krajina'])
@@ -82,34 +79,3 @@ else:
     
     with col4:
         st.text_input("Krajina Zákazníka", value=krajina_hodnota, disabled=True)
-# --- 4. UKLADANIE NOVÉHO ZÁKAZNÍKA ---
-WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwNR33wxSNXJFo9-o2otM-mdKQE22s3i3y5n08dY7eogGhhKDTasiPn3zaOoSihppTq/exec"
-
-if vyber == "+ Pridať nového zákazníka":
-    st.write("---")  # Oddeľovač pod formulárom
-    
-    # Vytvoríme tlačidlo na uloženie
-    if st.button("💾 Uložiť nového zákazníka do databázy"):
-        # Kontrola, či sú vyplnené polia
-        if zakaznik.strip() and krajina_hodnota.strip():
-            # Príprava dát pre tvoj Apps Script
-            novy_zakaznik_data = {
-                "zakaznik": zakaznik,
-                "krajina": krajina_hodnota
-            }
-            
-            try:
-                # Odoslanie dát cez POST požiadavku
-                response = requests.post(WEB_APP_URL, json=novy_zakaznik_data)
-                
-                if response.status_code == 200:
-                    st.success(f"Zákazník '{zakaznik}' bol úspešne pridaný!")
-                    st.balloons()
-                    # Vymažeme cache, aby sa pri najbližšom načítaní zákazník už objavil v zozname
-                    st.cache_data.clear()
-                else:
-                    st.error(f"Chyba pri ukladaní (Kód: {response.status_code})")
-            except Exception as e:
-                st.error(f"Nepodarilo sa spojiť s Google tabuľkou: {e}")
-        else:
-            st.warning("⚠️ Prosím, zadajte meno zákazníka aj jeho krajinu.")
