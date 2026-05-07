@@ -91,10 +91,14 @@ else:
 
 st.divider()
 
-# --- 6. RIADOK: MATERIÁL, AKOSŤ, POLOTOVAR ---
+# --- 6. RIADOK: MATERIÁL, AKOSŤ A INTELIGENTNÝ POLOTOVAR ---
 WEB_APP_MAT_URL = "https://script.google.com/macros/s/AKfycbzyZxjTplhk010oq7ozvovAGx5lRx72PjqUvoJUrNazx_jRfq7lqfQgbeHYG9O-NCcX/exec"
 
-col_m1, col_m2, col_m3 = st.columns(3)
+# Pomocná funkcia na zoradenie rozmerov (od najväčšieho po najmenšie)
+def get_sorted_dims(a, b, c):
+    return sorted([float(a), float(b), float(c)], reverse=True)
+
+col_m1, col_m2 = st.columns(2)
 
 with col_m1:
     zoznam_materialov = sorted(df_mat['material'].unique())
@@ -102,33 +106,64 @@ with col_m1:
 
 with col_m2:
     filtr_akosti = df_mat[df_mat['material'] == material]
-    zoznam_akosti = ["+ Pridať novú akosť"] + sorted(filtr_akosti['akost'].unique())
+    zoznam_akosti = sorted(filtr_akosti['akost'].unique())
     vyber_akosti = st.selectbox("Akosť", zoznam_akosti, key="akost_select")
 
-with col_m3:
-    # Polotovar teraz berie unikátne tvary z vopred načítaného df_mat
-    polotovar = st.selectbox("Tvar Polotovaru", sorted(df_mat['tvar'].unique()), key="polo_vsetky")
+st.markdown("---")
+st.subheader("Výber a kontrola polotovaru")
 
-if vyber_akosti == "+ Pridať novú akosť":
-    st.info(f"✨ Nová akosť pre: {material}")
+# Príprava rozmerov KOMPONENTU (zoradené)
+# Pre kruh dosadíme 0 tam, kde chýba rozmer
+komp_dims = get_sorted_dims(d, (s if tvar_item == "STV" else 0.0), (v if tvar_item == "STV" else l))
+
+# Filtrovanie vhodných polotovarov z DB
+df_relevant = df_mat[(df_mat['material'] == material) & (df_mat['akost'] == vyber_akosti)].copy()
+
+vhodne_moznosti = []
+for idx, r in df_relevant.iterrows():
+    # Zoradíme rozmery POLOTOVARU z tabuľky
+    polo_dims = get_sorted_dims(r['Rozmer1'], r['Rozmer2'], r['Rozmer3'])
+    
+    # Podmienka: Každý rozmer polotovaru musí byť >= ako rozmer komponentu
+    if polo_dims[0] >= komp_dims[0] and polo_dims[1] >= komp_dims[1] and polo_dims[2] >= komp_dims[2]:
+        objem = polo_dims[0] * polo_dims[1] * polo_dims[2]
+        label = f"{r['tvar']} | {r['Rozmer1']}x{r['Rozmer2']}x{r['Rozmer3']} | Cena: {r['Cena']}€/kg"
+        vhodne_moznosti.append({"label": label, "objem": objem, "data": r})
+
+# Zoradenie podľa objemu (najmenší/najefektívnejší prvý)
+vhodne_moznosti = sorted(vhodne_moznosti, key=lambda x: x['objem'])
+zoznam_final = [item['label'] for item in vhodne_moznosti]
+zoznam_final.append("+ Pridať nový/iný polotovar")
+
+vybrany_polo_str = st.selectbox("Odporúčané polotovary (najbližšie rozmery)", zoznam_final, key="polo_inteligent")
+
+# LOGIKA PRE ZOBRAZENIE FORMULÁRA ALEBO VÝSLEDKU
+if vybrany_polo_str == "+ Pridať nový/iný polotovar":
+    st.info("✨ Zadajte parametre pre nový polotovar do databázy")
     c_n1, c_n2, c_n3, c_n4, c_n5, c_n6 = st.columns(6)
-    with c_n1: nova_akost = st.text_input("Názov akosti")
+    with c_n1: nova_akost = st.text_input("Akosť", value=vyber_akosti)
     with c_n2: nova_cena = st.number_input("Cena (€/kg)", min_value=0.0, format="%.2f")
-    with c_n3: novy_tvar_zapis = st.selectbox("Tvar pre zápis", sorted(df_mat['tvar'].unique()), key="nz_tvar")
+    with c_n3: novy_tvar_zapis = st.selectbox("Tvar polotovaru", sorted(df_mat['tvar'].unique()), key="nz_tvar")
     with c_n4: r1 = st.number_input("R1", min_value=0.0)
-    with col_m3: pass # rezervované
     with c_n5: r2 = st.number_input("R2", min_value=0.0)
     with c_n6: r3 = st.number_input("R3", min_value=0.0)
 
-    if st.button("💾 Uložiť novú akosť", type="primary"):
-        if nova_akost.strip():
+    if st.button("💾 Uložiť polotovar", type="primary", use_container_width=True):
+        if r1 > 0:
             nova_data = {"Názov": item, "Akost": nova_akost, "Material": material, "Cena": nova_cena, "Tvar": novy_tvar_zapis, "Rozmer1": r1, "Rozmer2": r2, "Rozmer3": r3}
             try:
-                response = requests.post(WEB_APP_MAT_URL, json=nova_data)
-                if response.status_code == 200:
-                    st.success("Uložené!"); st.cache_data.clear()
-                else: st.error(f"Chyba {response.status_code}")
-            except Exception as e: st.error(f"Chyba: {e}")
-    akost = nova_akost
+                res = requests.post(WEB_APP_MAT_URL, json=nova_data)
+                if res.status_code == 200:
+                    st.success("Uložené do DB!"); st.cache_data.clear()
+                    st.rerun()
+                else: st.error("Chyba ukladania")
+            except: st.error("Chyba spojenia")
 else:
-    akost = vyber_akosti
+    # Vytiahnutie dát vybraného polotovaru pre ďalšie výpočty
+    vybrany_objekt = next(item for item in vhodne_moznosti if item['label'] == vybrany_polo_str)
+    p_data = vybrany_objekt['data']
+    st.success(f"✅ Vybraný polotovar vyhovuje. Cena: {p_data['Cena']} €/kg")
+    
+    # Tieto premenné môžeš použiť nižšie na výpočet hmotnosti/ceny
+    aktualna_cena_kg = p_data['Cena']
+    aktualny_polotovar_tvar = p_data['tvar']
