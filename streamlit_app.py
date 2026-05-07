@@ -78,7 +78,9 @@ else:
     
     with col4:
         st.text_input("Krajina Zákazníka", value=krajina_hodnota, disabled=True)
+
 st.divider()
+
 # --- 5. RIADOK: POLOŽKA (ITEM) ---
 # Vytvoríme nový riadok stĺpcov
 col5, col6, col7, col8 = st.columns(4)
@@ -88,6 +90,7 @@ with col5:
     # UX zobrazenie: ITEM
     # Dátový typ: string (st.text_input automaticky vracia string)
     item = st.text_input("ITEM", key="item_input")
+
 with col6:
     # Atribút: pocet_kusov 
     # Vždy celé číslo (value=1), minimálne 1 (min_value=1)
@@ -99,6 +102,7 @@ with col6:
         key="pocet_input",
         help="Zadajte celkové množstvo kusov (minimálne 1)."
     )
+
 with col7:
     # Atribút: narocnost
     # UX zobrazenie: Náročnosť
@@ -110,6 +114,7 @@ with col7:
         key="narocnost_input",
         help="Vyberte stupeň náročnosti od 1 (najnižšia) po 5 (najvyššia)."
     )
+
 with col8:
     # Atribút: tvar
     # UX zobrazenie: Tvar
@@ -120,3 +125,23 @@ with col8:
         key="tvar_input",
         help="STV = štvorcový alebo obdĺžnikový tvar, KR = kruhový tvar"
     )
+
+# --- DOPLNENÉ ROZMERY PODĽA TVARU ---
+col9, col10, col11, col12 = st.columns(4)
+
+if tvar == "KR":
+    with col9:
+        d = st.number_input("D(mm)", min_value=0.0, step=0.1, format="%.1f", key="d_kr")
+    with col10:
+        l = st.number_input("L(mm)", min_value=0.0, step=0.1, format="%.1f", key="l_kr")
+    # Inicializácia ostatných premenných pre model
+    s, v = 0.0, 0.0
+else:
+    with col9:
+        d = st.number_input("D/P(mm)", min_value=0.0, step=0.1, format="%.1f", key="d_stv")
+    with col10:
+        s = st.number_input("S(mm)", min_value=0.0, step=0.1, format="%.1f", key="s_stv")
+    with col11:
+        v = st.number_input("V(mm)", min_value=0.0, step=0.1, format="%.1f", key="v_stv")
+    # Inicializácia ostatných premenných pre model
+    l = 0.0
