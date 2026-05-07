@@ -66,3 +66,34 @@ else:
     with col4:
         # Pole zostáva uzamknuté (disabled), keďže krajinu poznáme
         st.text_input("Krajina Zákazníka", value=krajina_hodnota, disabled=True)
+# --- 4. UKLADANIE NOVÉHO ZÁKAZNÍKA ---
+WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwNR33wxSNXJFo9-o2otM-mdKQE22s3i3y5n08dY7eogGhhKDTasiPn3zaOoSihppTq/exec"
+
+if vyber == "+ Pridať nového zákazníka":
+    st.write("---")  # Oddeľovač pod formulárom
+    
+    # Vytvoríme tlačidlo na uloženie
+    if st.button("💾 Uložiť nového zákazníka do databázy"):
+        # Kontrola, či sú vyplnené polia
+        if zakaznik.strip() and krajina_hodnota.strip():
+            # Príprava dát pre tvoj Apps Script
+            novy_zakaznik_data = {
+                "zakaznik": zakaznik,
+                "krajina": krajina_hodnota
+            }
+            
+            try:
+                # Odoslanie dát cez POST požiadavku
+                response = requests.post(WEB_APP_URL, json=novy_zakaznik_data)
+                
+                if response.status_code == 200:
+                    st.success(f"Zákazník '{zakaznik}' bol úspešne pridaný!")
+                    st.balloons()
+                    # Vymažeme cache, aby sa pri najbližšom načítaní zákazník už objavil v zozname
+                    st.cache_data.clear()
+                else:
+                    st.error(f"Chyba pri ukladaní (Kód: {response.status_code})")
+            except Exception as e:
+                st.error(f"Nepodarilo sa spojiť s Google tabuľkou: {e}")
+        else:
+            st.warning("⚠️ Prosím, zadajte meno zákazníka aj jeho krajinu.")
