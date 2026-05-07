@@ -146,3 +146,27 @@ else:
     # Inicializácia ostatných premenných pre model
     l = 0.0
 st.divider()
+# --- NAČÍTANIE DÁT PRE MATERIÁLY (na koniec skriptu alebo k importom) ---
+material_sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQf4EiqZt1grkazJgfYWVhG0M8FGLNCjaGk6dcXhO3r04JQuZ9Qxv1jelDo3c8hBLy7Ny5C1pZqvbfS/pub?output=csv"
+df_mat = pd.read_csv(material_sheet_url)
+
+st.divider()
+
+# --- 6. RIADOK: MATERIÁL, AKOSŤ, POLOTOVAR ---
+col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+
+with col_m1:
+    # Výber unikátnych materiálov (OCEĽ, NEREZ, atď.)
+    zoznam_materialov = sorted(df_mat['material'].unique())
+    material = st.selectbox("Materiál", zoznam_materialov, key="mat_select")
+
+with col_m2:
+    # Dynamická filtrácia: ukáže len akosti prislúchajúce vybranému materiálu
+    filtr_akosti = df_mat[df_mat['material'] == material]
+    zoznam_akosti = sorted(filtr_akosti['akost'].unique())
+    akost = st.selectbox("Akosť", zoznam_akosti, key="akost_select")
+
+with col_m3:
+    # Výber unikátnych tvarov polotovaru zo stĺpca 'tvar'
+    zoznam_polotovarov = sorted(df_mat['tvar'].unique())
+    polotovar = st.selectbox("Tvar Polotovaru", zoznam_polotovarov, key="polo_select")
