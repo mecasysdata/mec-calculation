@@ -171,3 +171,40 @@ else:
     # Premenné pre ďalšie výpočty
     aktualna_cena_kg = p_data['cena']
     aktualny_polotovar_tvar = p_data['tvar']
+
+# --- DOPLNOK NA KONIEC SKRIPTU: VÝPOČET CENY ---
+
+# 1. Definujeme dĺžku komponentu podľa tvaru (KR -> l, STV -> d)
+# Premenné 'd', 'l' a 'tvar_item' už máš definované vyššie v skripte
+dlzka_komponentu = l if tvar_item == "KR" else d
+
+# 2. Získame cenu polotovaru (buď z vybraného zoznamu alebo z nového vstupu)
+# Inicializujeme na 0, aby skript nespadol, ak ešte nie je nič vybrané
+cena_z_cennika = 0.0
+
+if vybrany_polo_str == "+ Pridať nový/iný polotovar":
+    if 'nova_cena' in locals():
+        cena_z_cennika = nova_cena
+else:
+    # 'p_data' je riadok z tabuľky, ktorý sme extrahovali v sekcii 6
+    if 'p_data' in locals():
+        cena_z_cennika = float(p_data['cena'])
+
+# 3. Samotný výpočet a zobrazenie
+st.divider()
+st.subheader("Finálna kalkulácia")
+
+if dlzka_komponentu > 0 and cena_z_cennika > 0:
+    # Výpočet ceny za kus (na mm dĺžky)
+    cena_ks = cena_z_cennika / dlzka_komponentu
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        st.metric(label="Cena polotovaru", value=f"{cena_z_cennika:.2f} €/kg")
+    with c2:
+        st.metric(label="Cena za komponent (cena_ks)", value=f"{cena_ks:.4f} €")
+    
+    # Uloženie do session_state, ak by si to potrebovala neskôr
+    st.session_state['final_cena_ks'] = cena_ks
+else:
+    st.warning("Pre výpočet ceny doplňte rozmery komponentu (D/P alebo L) a vyberte polotovar.")
