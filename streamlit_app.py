@@ -83,8 +83,9 @@ st.divider()
 
 # --- 5. RIADOK: POLOŽKA (ITEM) ---
 # Vytvoríme nový riadok stĺpcov
-col5, col6, col7, col8 = st.columns(4)
 
+col5, col6, col7, col8,col9, col10, col11, col12 = st.columns(8)
+ 
 with col5:
     # Atribút: item
     # UX zobrazenie: ITEM
@@ -127,7 +128,6 @@ with col8:
     )
 
 # --- DOPLNENÉ ROZMERY PODĽA TVARU ---
-col9, col10, col11, col12 = st.columns(4)
 
 if tvar == "KR":
     with col9:
