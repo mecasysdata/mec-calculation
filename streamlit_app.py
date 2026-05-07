@@ -88,3 +88,14 @@ with col5:
     # UX zobrazenie: ITEM
     # Dátový typ: string (st.text_input automaticky vracia string)
     item = st.text_input("ITEM", key="item_input")
+with col6:
+    # Atribút: pocet_kusov 
+    # Vždy celé číslo (value=1), minimálne 1 (min_value=1)
+    pocet_kusov = st.number_input(
+        "Počet kusov", 
+        min_value=1, 
+        value=1, 
+        step=1, 
+        key="pocet_input",
+        help="Zadajte celkové množstvo kusov (minimálne 1)."
+    )
