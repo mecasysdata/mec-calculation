@@ -145,3 +145,4 @@ else:
         v = st.number_input("V(mm)", min_value=0.0, step=0.1, format="%.1f", key="v_stv")
     # Inicializácia ostatných premenných pre model
     l = 0.0
+st.divider()
