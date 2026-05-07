@@ -26,3 +26,8 @@ with col1:
     import datetime
     datum = st.date_input("Dátum", datetime.date.today())
 
+with col2:
+    # Atribút Ponuka:
+    # - label: "Označenie CP" (názov, ktorý uvidí používateľ)
+    # - value: "" (necháme prázdne, aby používateľ mohol písať)
+    ponuka = st.text_input("Označenie CP")
