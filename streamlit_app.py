@@ -79,3 +79,12 @@ else:
     with col4:
         st.text_input("Krajina Zákazníka", value=krajina_hodnota, disabled=True)
 st.divider()
+# --- 5. RIADOK: POLOŽKA (ITEM) ---
+# Vytvoríme nový riadok stĺpcov
+col5, col6, col7, col8 = st.columns(4)
+
+with col5:
+    # Atribút: item
+    # UX zobrazenie: ITEM
+    # Dátový typ: string (st.text_input automaticky vracia string)
+    item = st.text_input("ITEM", key="item_input")
