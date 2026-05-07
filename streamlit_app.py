@@ -46,25 +46,41 @@ with col3:
     vyber = st.selectbox("Názov Zákazníka", moznosti_zakaznikov)
 
 # --- LOGIKA ROZHODOVANIA ---
+# --- LOGIKA ROZHODOVANIA (Zobrazenie v col3 a col4) ---
 if vyber == "+ Pridať nového zákazníka":
-    # Režim: Nový zákazník
     with col3:
-        zakaznik = st.text_input("Zadajte meno nového zákazníka")
-    
+        zakaznik = st.text_input("Zadajte meno nového zákazníka", key="new_cust_name")
+        
+        # Vytvoríme tlačidlo hneď pod menom alebo vedľa neho
+        # Ak ho chceš presne vedľa, môžeme tu spraviť mini-stĺpce:
+        st.markdown(" ") # Malá medzera pre zarovnanie
+        if st.button("💾 Uložiť do databázy", use_container_width=True, type="primary"):
+            if zakaznik.strip() and krajina_hodnota.strip():
+                novy_zakaznik_data = {"zakaznik": zakaznik, "krajina": krajina_hodnota}
+                try:
+                    response = requests.post(WEB_APP_URL, json=novy_zakaznik_data)
+                    if response.status_code == 200:
+                        st.success("Uložené!")
+                        st.cache_data.clear()
+                    else:
+                        st.error("Chyba!")
+                except Exception as e:
+                    st.error(f"Error: {e}")
+            else:
+                st.warning("Vyplňte údaje!")
+
     with col4:
-        krajina_hodnota = st.text_input("Krajina Zákazníka (manuálne)")
-    
-    lojalita = 0.5  # Automaticky nastavená hodnota
+        krajina_hodnota = st.text_input("Krajina Zákazníka (manuálne)", key="new_cust_country")
+        lojalita = 0.5
 
 else:
-    # Režim: Existujúci zákazník (pôvodná logika)
+    # REŽIM: EXISTUJÚCI ZÁKAZNÍK (nezmenené)
     data_zakaznika = df[df['zakaznik'] == vyber].iloc[0]
     zakaznik = vyber
     krajina_hodnota = str(data_zakaznika['krajina'])
     lojalita = float(data_zakaznika['lojalita'])
-
+    
     with col4:
-        # Pole zostáva uzamknuté (disabled), keďže krajinu poznáme
         st.text_input("Krajina Zákazníka", value=krajina_hodnota, disabled=True)
 # --- 4. UKLADANIE NOVÉHO ZÁKAZNÍKA ---
 WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwNR33wxSNXJFo9-o2otM-mdKQE22s3i3y5n08dY7eogGhhKDTasiPn3zaOoSihppTq/exec"
