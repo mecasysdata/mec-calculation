@@ -110,3 +110,13 @@ with col7:
         key="narocnost_input",
         help="Vyberte stupeň náročnosti od 1 (najnižšia) po 5 (najvyššia)."
     )
+with col8:
+    # Atribút: tvar
+    # UX zobrazenie: Tvar
+    # Výber z možností: STV (Štvorec/Obdĺžnik) alebo KR (Kruh)
+    tvar = st.selectbox(
+        "Tvar", 
+        options=["STV", "KR"], 
+        key="tvar_input",
+        help="STV = štvorcový alebo obdĺžnikový tvar, KR = kruhový tvar"
+    )
