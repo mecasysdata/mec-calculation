@@ -90,17 +90,17 @@ else:
     l = 0.0
 
 st.divider()
-
-
 # --- 6. RIADOK: MATERIÁL, AKOSŤ A INTELIGENTNÝ POLOTOVAR ---
 WEB_APP_MAT_URL = "https://script.google.com/macros/s/AKfycbzyZxjTplhk010oq7ozvovAGx5lRx72PjqUvoJUrNazx_jRfq7lqfQgbeHYG9O-NCcX/exec"
 
-# Malá poistka: premenujeme všetky stĺpce na malé písmená, aby sme sa vyhli KeyError
+# Zjednotenie názvov stĺpcov
 df_mat.columns = [c.lower().strip() for c in df_mat.columns]
 
-# Pomocná funkcia na zoradenie rozmerov (od najväčšieho po najmenšie)
 def get_sorted_dims(a, b, c):
-    return sorted([float(a), float(b), float(c)], reverse=True)
+    try:
+        return sorted([float(a), float(b), float(c)], reverse=True)
+    except:
+        return [0.0, 0.0, 0.0]
 
 col_m1, col_m2 = st.columns(2)
 
@@ -116,95 +116,74 @@ with col_m2:
 st.markdown("---")
 st.subheader("Výber a kontrola polotovaru")
 
-# Príprava rozmerov KOMPONENTU (zoradené)
 komp_dims = get_sorted_dims(d, (s if tvar_item == "STV" else 0.0), (v if tvar_item == "STV" else l))
-
-# Filtrovanie vhodných polotovarov z DB
 df_relevant = df_mat[(df_mat['material'] == material) & (df_mat['akost'] == vyber_akosti)].copy()
 
 vhodne_moznosti = []
 for idx, r in df_relevant.iterrows():
-    # Zoradíme rozmery POLOTOVARU z tabuľky (používame malé názvy stĺpcov)
     polo_dims = get_sorted_dims(r['rozmer1'], r['rozmer2'], r['rozmer3'])
-    
-    # Podmienka: Každý rozmer polotovaru musí byť >= ako rozmer komponentu
     if polo_dims[0] >= komp_dims[0] and polo_dims[1] >= komp_dims[1] and polo_dims[2] >= komp_dims[2]:
         objem = polo_dims[0] * polo_dims[1] * polo_dims[2]
-        # Tu je oprava na 'cena' s malým c
-        label = f"{r['tvar']} | {r['rozmer1']}x{r['rozmer2']}x{r['rozmer3']} | Cena: {r['cena']}€/kg"
+        # Zmena popisu na €/bm
+        label = f"{r['tvar']} | {r['rozmer1']}x{r['rozmer2']}x{r['rozmer3']} | Cena: {r['cena']}€/bm"
         vhodne_moznosti.append({"label": label, "objem": objem, "data": r})
 
-# Zoradenie podľa objemu
 vhodne_moznosti = sorted(vhodne_moznosti, key=lambda x: x['objem'])
 zoznam_final = [item['label'] for item in vhodne_moznosti]
 zoznam_final.append("+ Pridať nový/iný polotovar")
 
 vybrany_polo_str = st.selectbox("Odporúčané polotovary (najbližšie rozmery)", zoznam_final, key="polo_inteligent")
 
+cena_z_cennika_bm = 0.0
+
 if vybrany_polo_str == "+ Pridať nový/iný polotovar":
-    st.info("✨ Zadajte parametre pre nový polotovar do databázy")
+    st.info("✨ Zadajte parametre pre nový polotovar (Cena je za bežný meter)")
     c_n1, c_n2, c_n3, c_n4, c_n5, c_n6 = st.columns(6)
     with c_n1: nova_akost = st.text_input("Akosť", value=vyber_akosti)
-    with c_n2: nova_cena = st.number_input("Cena (€/kg)", min_value=0.0, format="%.2f")
-    with c_n3: novy_tvar_zapis = st.selectbox("Tvar polotovaru", sorted(df_mat['tvar'].unique()), key="nz_tvar")
+    with c_n2: nova_cena = st.number_input("Cena (€/bm)", min_value=0.0, format="%.2f")
+    with c_n3: novy_tvar_zapis = st.selectbox("Tvar polotovaru", sorted(df_mat['tvar'].unique()), key="nz_tvar_final")
     with c_n4: r1 = st.number_input("R1", min_value=0.0)
     with c_n5: r2 = st.number_input("R2", min_value=0.0)
     with c_n6: r3 = st.number_input("R3", min_value=0.0)
 
+    cena_z_cennika_bm = nova_cena
+
     if st.button("💾 Uložiť polotovar", type="primary", use_container_width=True):
         if r1 > 0:
-            # Kľúče pre Apps Script nechávame tak, ako ich máš v skripte (Názov, Akost...)
             nova_data = {"Názov": item, "Akost": nova_akost, "Material": material, "Cena": nova_cena, "Tvar": novy_tvar_zapis, "Rozmer1": r1, "Rozmer2": r2, "Rozmer3": r3}
             try:
                 res = requests.post(WEB_APP_MAT_URL, json=nova_data)
                 if res.status_code == 200:
-                    st.success("Uložené!"); st.cache_data.clear()
-                    st.rerun()
+                    st.success("✅ Uložené!"); st.cache_data.clear(); st.rerun()
                 else: st.error("Chyba ukladania")
             except: st.error("Chyba spojenia")
 else:
-    # Vytiahnutie dát vybraného polotovaru (používame malé 'cena')
-    vybrany_objekt = next(item for item in vhodne_moznosti if item['label'] == vybrany_polo_str)
-    p_data = vybrany_objekt['data']
-    st.success(f"✅ Vybraný polotovar vyhovuje. Cena: {p_data['cena']} €/kg")
-    
-    # Premenné pre ďalšie výpočty
-    aktualna_cena_kg = p_data['cena']
-    aktualny_polotovar_tvar = p_data['tvar']
+    vybrany_objekt = next((item for item in vhodne_moznosti if item['label'] == vybrany_polo_str), None)
+    if vybrany_objekt:
+        p_data = vybrany_objekt['data']
+        cena_z_cennika_bm = float(p_data['cena'])
+        st.success(f"✅ Cena polotovaru: {cena_z_cennika_bm} €/bm")
 
-# --- DOPLNOK NA KONIEC SKRIPTU: VÝPOČET CENY ---
-
-# 1. Definujeme dĺžku komponentu podľa tvaru (KR -> l, STV -> d)
-# Premenné 'd', 'l' a 'tvar_item' už máš definované vyššie v skripte
-dlzka_komponentu = l if tvar_item == "KR" else d
-
-# 2. Získame cenu polotovaru (buď z vybraného zoznamu alebo z nového vstupu)
-# Inicializujeme na 0, aby skript nespadol, ak ešte nie je nič vybrané
-cena_z_cennika = 0.0
-
-if vybrany_polo_str == "+ Pridať nový/iný polotovar":
-    if 'nova_cena' in locals():
-        cena_z_cennika = nova_cena
-else:
-    # 'p_data' je riadok z tabuľky, ktorý sme extrahovali v sekcii 6
-    if 'p_data' in locals():
-        cena_z_cennika = float(p_data['cena'])
-
-# 3. Samotný výpočet a zobrazenie
+# --- FINÁLNA KALKULÁCIA CENY ---
 st.divider()
-st.subheader("Finálna kalkulácia")
+st.subheader("Ekonomika komponentu")
 
-if dlzka_komponentu > 0 and cena_z_cennika > 0:
-    # Výpočet ceny za kus (na mm dĺžky)
-    cena_ks = cena_z_cennika / dlzka_komponentu
+# Rozmer, ktorý určuje dĺžku (v mm)
+dlzka_komp_mm = l if tvar_item == "KR" else d
+
+if dlzka_komp_mm > 0 and cena_z_cennika_bm > 0:
+    # VÝPOČET: (Cena za bm / 1000) * dĺžka v mm
+    cena_za_mm = cena_z_cennika_bm / 1000
+    cena_ks = cena_za_mm * dlzka_komp_mm
     
-    c1, c2 = st.columns(2)
-    with c1:
-        st.metric(label="Cena polotovaru", value=f"{cena_z_cennika:.2f} €/kg")
-    with c2:
-        st.metric(label="Cena za komponent (cena_ks)", value=f"{cena_ks:.4f} €")
+    col_res1, col_res2 = st.columns(2)
+    with col_res1:
+        st.metric(label="Cena za bežný meter", value=f"{cena_z_cennika_bm:.2f} €/bm")
+    with col_res2:
+        st.metric(label="Cena za 1 ks komponentu", value=f"{cena_ks:.4f} €", help=f"Výpočet: ({cena_z_cennika_bm} / 1000) * {dlzka_komp_mm}")
     
-    # Uloženie do session_state, ak by si to potrebovala neskôr
-    st.session_state['final_cena_ks'] = cena_ks
+    st.session_state['vypocitana_cena_ks'] = cena_ks
 else:
-    st.warning("Pre výpočet ceny doplňte rozmery komponentu (D/P alebo L) a vyberte polotovar.")
+    st.warning("⚠️ Doplňte rozmery a vyberte polotovar pre výpočet ceny.")
+
+
