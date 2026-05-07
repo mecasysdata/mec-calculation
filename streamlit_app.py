@@ -153,29 +153,40 @@ df_mat = pd.read_csv(material_sheet_url)
 st.divider()
 
 # --- 6. RIADOK: MATERIÁL, AKOSŤ, POLOTOVAR ---
-col_m1, col_m2, col_m3 = st.columns([1, 1, 1])
+st.divider()
+
+# --- 6. RIADOK: MATERIÁL, AKOSŤ, POLOTOVAR ---
+# Načítanie materiálového sheetu
+material_sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQf4EiqZt1grkazJgfYWVhG0M8FGLNCjaGk6dcXhO3r04JQuZ9Qxv1jelDo3c8hBLy7Ny5C1pZqvbfS/pub?output=csv"
+df_mat = pd.read_csv(material_sheet_url)
+
+# URL pre tvoj Apps Script z tvojej správy
+WEB_APP_MAT_URL = "https://script.google.com/macros/s/AKfycbzyZxjTplhk010oq7ozvovAGx5lRx72PjqUvoJUrNazx_jRfq7lqfQgbeHYG9O-NCcX/exec"
+
+col_m1, col_m2, col_m3 = st.columns(3)
 
 with col_m1:
     zoznam_materialov = sorted(df_mat['material'].unique())
     material = st.selectbox("Materiál", zoznam_materialov, key="mat_select")
 
 with col_m2:
+    # Dynamický zoznam akostí podľa materiálu + možnosť pridania
     filtr_akosti = df_mat[df_mat['material'] == material]
     zoznam_akosti = ["+ Pridať novú akosť"] + sorted(filtr_akosti['akost'].unique())
     vyber_akosti = st.selectbox("Akosť", zoznam_akosti, key="akost_select")
 
-# SEM VLOŽ SVOJU URL PO NASADENÍ (DEPLOY) APPS SCRIPTU
-WEB_APP_MAT_URL = "TU_VLOZ_SVOJU_URL_Z_OBRAZKU"
-
+# --- LOGIKA: PRIDANIE NOVEJ AKOSTI ---
 if vyber_akosti == "+ Pridať novú akosť":
-    st.info(f"✨ Vytvárate novú akosť pre: {material}")
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    st.info(f"✨ Vytvárate novú akosť pre materiál: {material}")
     
+    # 6 stĺpcov pre detaily novej akosti
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
     with c1:
         nova_akost = st.text_input("Názov novej akosti")
     with c2:
         nova_cena = st.number_input("Cena (€/kg)", min_value=0.0, format="%.2f")
     with c3:
+        # Pri novej akosti vyberáme tvar zo všetkých existujúcich v tabuľke
         novy_tvar = st.selectbox("Tvar polotovaru", sorted(df_mat['tvar'].unique()), key="novy_tvar_input")
     with c4:
         r1 = st.number_input("Rozmer 1", min_value=0.0, format="%.1f")
@@ -186,9 +197,9 @@ if vyber_akosti == "+ Pridať novú akosť":
 
     if st.button("💾 Uložiť novú akosť do databázy", type="primary"):
         if nova_akost.strip():
-            # Tieto názvy vpravo (Názov, Akost...) musia byť IDENTICKÉ ako v Apps Scripte
+            # Dáta zoradené presne pre tvoj Apps Script (veľké začiatočné písmená)
             nova_data = {
-                "Názov": item,          # Berie sa z premennej 'item' (col5)
+                "Názov": item,          # Premenná z col5 (názov položky)
                 "Akost": nova_akost,
                 "Material": material,
                 "Cena": nova_cena,
@@ -200,27 +211,31 @@ if vyber_akosti == "+ Pridať novú akosť":
             try:
                 response = requests.post(WEB_APP_MAT_URL, json=nova_data)
                 if response.status_code == 200:
-                    st.success(f"Akosť '{nova_akost}' uložená!")
+                    st.success(f"Akosť '{nova_akost}' úspešne uložená!")
+                    # Vyčistenie cache, aby sa nová akosť po refreshu hneď objavila v selectboxe
                     st.cache_data.clear()
                 else:
-                    st.error("Chyba pri komunikácii so serverom.")
+                    st.error("Chyba: Skontrolujte nasadenie (Deployment) Apps Scriptu.")
             except Exception as e:
-                st.error(f"Chyba: {e}")
+                st.error(f"Error: {e}")
         else:
-            st.warning("Zadajte názov akosti!")
-    
-    akost = nova_akost # Nastavíme premennú pre model
+            st.warning("⚠️ Zadajte názov novej akosti!")
+
+    # Priradenie premenných pre prípadný okamžitý výpočet
+    akost = nova_akost
     polotovar = novy_tvar
 
+# --- LOGIKA: EXISTUJÚCA AKOSŤ ---
 else:
-    # REŽIM: EXISTUJÚCA AKOSŤ
     akost = vyber_akosti
     with col_m3:
-        # Tu musíme zistiť polotovar prislúchajúci vybranej akosti z tabuľky
-        try:
-            polotovar_hodnota = df_mat[(df_mat['material'] == material) & (df_mat['akost'] == akost)]['tvar'].iloc[0]
-        except:
-            polotovar_hodnota = "Neznámy"
+        # Nájdeme dostupné tvary pre túto konkrétnu akosť v našom DataFrame
+        dostupne_tvary = df_mat[(df_mat['material'] == material) & (df_mat['akost'] == akost)]['tvar'].unique()
+        
+        if len(dostupne_tvary) == 0:
+            zoznam_polo = sorted(df_mat['tvar'].unique())
+        else:
+            zoznam_polo = sorted(dostupne_tvary)
             
-        polotovar = st.text_input("Tvar Polotovaru", value=polotovar_hodnota, disabled=True)
+        polotovar = st.selectbox("Tvar Polotovaru", zoznam_polo, key="polo_select_exist")
 
