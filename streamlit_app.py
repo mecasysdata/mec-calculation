@@ -79,3 +79,4 @@ else:
     
     with col4:
         st.text_input("Krajina Zákazníka", value=krajina_hodnota, disabled=True)
+st.divider()
