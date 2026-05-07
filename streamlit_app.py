@@ -152,7 +152,6 @@ df_mat = pd.read_csv(material_sheet_url)
 
 st.divider()
 
-# --- 6. RIADOK: MATERIÁL, AKOSŤ, POLOTOVAR ---
 st.divider()
 
 # --- 6. RIADOK: MATERIÁL, AKOSŤ, POLOTOVAR ---
@@ -160,7 +159,7 @@ st.divider()
 material_sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQf4EiqZt1grkazJgfYWVhG0M8FGLNCjaGk6dcXhO3r04JQuZ9Qxv1jelDo3c8hBLy7Ny5C1pZqvbfS/pub?output=csv"
 df_mat = pd.read_csv(material_sheet_url)
 
-# URL pre tvoj Apps Script z tvojej správy
+# URL pre tvoj Apps Script
 WEB_APP_MAT_URL = "https://script.google.com/macros/s/AKfycbzyZxjTplhk010oq7ozvovAGx5lRx72PjqUvoJUrNazx_jRfq7lqfQgbeHYG9O-NCcX/exec"
 
 col_m1, col_m2, col_m3 = st.columns(3)
@@ -170,10 +169,15 @@ with col_m1:
     material = st.selectbox("Materiál", zoznam_materialov, key="mat_select")
 
 with col_m2:
-    # Dynamický zoznam akostí podľa materiálu + možnosť pridania
+    # Dynamický zoznam akostí podľa materiálu
     filtr_akosti = df_mat[df_mat['material'] == material]
     zoznam_akosti = ["+ Pridať novú akosť"] + sorted(filtr_akosti['akost'].unique())
     vyber_akosti = st.selectbox("Akosť", zoznam_akosti, key="akost_select")
+
+with col_m3:
+    # Úplne nezávislý výber tvaru polotovaru zo všetkých unikátnych hodnôt v tabuľke
+    zoznam_vsetkych_tvarov = sorted(df_mat['tvar'].unique())
+    polotovar = st.selectbox("Tvar Polotovaru", zoznam_vsetkych_tvarov, key="polo_select_vsetky")
 
 # --- LOGIKA: PRIDANIE NOVEJ AKOSTI ---
 if vyber_akosti == "+ Pridať novú akosť":
@@ -186,8 +190,8 @@ if vyber_akosti == "+ Pridať novú akosť":
     with c2:
         nova_cena = st.number_input("Cena (€/kg)", min_value=0.0, format="%.2f")
     with c3:
-        # Pri novej akosti vyberáme tvar zo všetkých existujúcich v tabuľke
-        novy_tvar = st.selectbox("Tvar polotovaru", sorted(df_mat['tvar'].unique()), key="novy_tvar_input")
+        # Tu pri zadávaní novej akosti si tiež vyberieš tvar, pod ktorým sa uloží
+        novy_tvar_zapis = st.selectbox("Tvar pre zápis", zoznam_vsetkych_tvarov, key="novy_tvar_zapis")
     with c4:
         r1 = st.number_input("Rozmer 1", min_value=0.0, format="%.1f")
     with c5:
@@ -197,13 +201,12 @@ if vyber_akosti == "+ Pridať novú akosť":
 
     if st.button("💾 Uložiť novú akosť do databázy", type="primary"):
         if nova_akost.strip():
-            # Dáta zoradené presne pre tvoj Apps Script (veľké začiatočné písmená)
             nova_data = {
-                "Názov": item,          # Premenná z col5 (názov položky)
+                "Názov": item,
                 "Akost": nova_akost,
                 "Material": material,
                 "Cena": nova_cena,
-                "Tvar": novy_tvar,
+                "Tvar": novy_tvar_zapis,
                 "Rozmer1": r1,
                 "Rozmer2": r2,
                 "Rozmer3": r3
@@ -212,28 +215,21 @@ if vyber_akosti == "+ Pridať novú akosť":
                 response = requests.post(WEB_APP_MAT_URL, json=nova_data)
                 if response.status_code == 200:
                     st.success(f"Akosť '{nova_akost}' úspešne uložená!")
-                    # Vyčistenie cache, aby sa nová akosť po refreshu hneď objavila v selectboxe
                     st.cache_data.clear()
                 else:
-                    st.error("Chyba: Skontrolujte nasadenie (Deployment) Apps Scriptu.")
+                    st.error("Chyba pri ukladaní.")
             except Exception as e:
                 st.error(f"Error: {e}")
         else:
             st.warning("⚠️ Zadajte názov novej akosti!")
-
-    # Priradenie premenných pre prípadný okamžitý výpočet
+    
+    # Prepísanie premennej akost pre model, ak sa práve vytvára
     akost = nova_akost
-    polotovar = novy_tvar
-
-# --- LOGIKA: EXISTUJÚCA AKOSŤ ---
 else:
+    # Ak nevyberáme "Pridať novú", premenná akost je to, čo je v selectboxe
     akost = vyber_akosti
-    with col_m3:
-        # Nájdeme dostupné tvary pre túto konkrétnu akosť v našom DataFrame
-        dostupne_tvary = df_mat[(df_mat['material'] == material) & (df_mat['akost'] == akost)]['tvar'].unique()
-        
-        if len(dostupne_tvary) == 0:
-            zoznam_polo = sorted(df_mat['tvar'].unique())
+
+# Výsledok: Máš premenné 'material', 'akost' a 'polotovar' pripravené pre ďalší výpočet.
         else:
             zoznam_polo = sorted(dostupne_tvary)
             
