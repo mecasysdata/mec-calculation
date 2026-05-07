@@ -41,18 +41,15 @@ with col3:
 # --- KONFIGURÁCIA UKLADANIA ---
 WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwNR33wxSNXJFo9-o2otM-mdKQE22s3i3y5n08dY7eogGhhKDTasiPn3zaOoSihppTq/exec"
 
-# --- LOGIKA ROZHODOVANIA (Opravené poradie a odstránená duplicita) ---
 if vyber == "+ Pridať nového zákazníka":
     with col3:
         zakaznik = st.text_input("Zadajte meno nového zákazníka", key="new_cust_name")
     
     with col4:
-        # Najprv vytvoríme krajinu, aby ju tlačidlo neskôr poznalo
         krajina_hodnota = st.text_input("Krajina Zákazníka (manuálne)", key="new_cust_country")
         lojalita = 0.5
 
     with col3:
-        # Tlačidlo je až TU, aby videlo premennú 'krajina_hodnota' z riadku vyššie
         st.markdown(" ") 
         if st.button("💾 Uložiť do databázy", use_container_width=True, type="primary"):
             if zakaznik.strip() and krajina_hodnota.strip():
@@ -70,7 +67,6 @@ if vyber == "+ Pridať nového zákazníka":
                 st.warning("⚠️ Vyplňte meno aj krajinu!")
 
 else:
-    # REŽIM: EXISTUJÚCI ZÁKAZNÍK
     data_zakaznika = df[df['zakaznik'] == vyber].iloc[0]
     zakaznik = vyber
     krajina_hodnota = str(data_zakaznika['krajina'])
@@ -82,59 +78,25 @@ else:
 st.divider()
 
 # --- 5. RIADOK: POLOŽKA (ITEM) ---
-# Vytvoríme nový riadok stĺpcov
-
-col5, col6, col7, col8,col9, col10, col11, col12 = st.columns(8)
+col5, col6, col7, col8, col9, col10, col11, col12 = st.columns(8)
  
 with col5:
-    # Atribút: item
-    # UX zobrazenie: ITEM
-    # Dátový typ: string (st.text_input automaticky vracia string)
     item = st.text_input("ITEM", key="item_input")
 
 with col6:
-    # Atribút: pocet_kusov 
-    # Vždy celé číslo (value=1), minimálne 1 (min_value=1)
-    pocet_kusov = st.number_input(
-        "Počet kusov", 
-        min_value=1, 
-        value=1, 
-        step=1, 
-        key="pocet_input",
-        help="Zadajte celkové množstvo kusov (minimálne 1)."
-    )
+    pocet_kusov = st.number_input("Počet kusov", min_value=1, value=1, step=1, key="pocet_input")
 
 with col7:
-    # Atribút: narocnost
-    # UX zobrazenie: Náročnosť
-    # Výber z možností 1 až 5
-    narocnost = st.selectbox(
-        "Náročnosť", 
-        options=[1, 2, 3, 4, 5], 
-        index=0,  # Predvolene vybratá prvá možnosť (1)
-        key="narocnost_input",
-        help="Vyberte stupeň náročnosti od 1 (najnižšia) po 5 (najvyššia)."
-    )
+    narocnost = st.selectbox("Náročnosť", options=[1, 2, 3, 4, 5], index=0, key="narocnost_input")
 
 with col8:
-    # Atribút: tvar
-    # UX zobrazenie: Tvar
-    # Výber z možností: STV (Štvorec/Obdĺžnik) alebo KR (Kruh)
-    tvar = st.selectbox(
-        "Tvar", 
-        options=["STV", "KR"], 
-        key="tvar_input",
-        help="STV = štvorcový alebo obdĺžnikový tvar, KR = kruhový tvar"
-    )
-
-# --- DOPLNENÉ ROZMERY PODĽA TVARU ---
+    tvar = st.selectbox("Tvar", options=["STV", "KR"], key="tvar_input")
 
 if tvar == "KR":
     with col9:
         d = st.number_input("D(mm)", min_value=0.0, step=0.1, format="%.1f", key="d_kr")
     with col10:
         l = st.number_input("L(mm)", min_value=0.0, step=0.1, format="%.1f", key="l_kr")
-    # Inicializácia ostatných premenných pre model
     s, v = 0.0, 0.0
 else:
     with col9:
@@ -143,23 +105,14 @@ else:
         s = st.number_input("S(mm)", min_value=0.0, step=0.1, format="%.1f", key="s_stv")
     with col11:
         v = st.number_input("V(mm)", min_value=0.0, step=0.1, format="%.1f", key="v_stv")
-    # Inicializácia ostatných premenných pre model
     l = 0.0
-st.divider()
-# --- NAČÍTANIE DÁT PRE MATERIÁLY (na koniec skriptu alebo k importom) ---
-material_sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQf4EiqZt1grkazJgfYWVhG0M8FGLNCjaGk6dcXhO3r04JQuZ9Qxv1jelDo3c8hBLy7Ny5C1pZqvbfS/pub?output=csv"
-df_mat = pd.read_csv(material_sheet_url)
-
-st.divider()
 
 st.divider()
 
 # --- 6. RIADOK: MATERIÁL, AKOSŤ, POLOTOVAR ---
-# Načítanie materiálového sheetu
 material_sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQf4EiqZt1grkazJgfYWVhG0M8FGLNCjaGk6dcXhO3r04JQuZ9Qxv1jelDo3c8hBLy7Ny5C1pZqvbfS/pub?output=csv"
 df_mat = pd.read_csv(material_sheet_url)
 
-# URL pre tvoj Apps Script
 WEB_APP_MAT_URL = "https://script.google.com/macros/s/AKfycbzyZxjTplhk010oq7ozvovAGx5lRx72PjqUvoJUrNazx_jRfq7lqfQgbeHYG9O-NCcX/exec"
 
 col_m1, col_m2, col_m3 = st.columns(3)
@@ -169,28 +122,23 @@ with col_m1:
     material = st.selectbox("Materiál", zoznam_materialov, key="mat_select")
 
 with col_m2:
-    # Dynamický zoznam akostí podľa materiálu
     filtr_akosti = df_mat[df_mat['material'] == material]
     zoznam_akosti = ["+ Pridať novú akosť"] + sorted(filtr_akosti['akost'].unique())
     vyber_akosti = st.selectbox("Akosť", zoznam_akosti, key="akost_select")
 
 with col_m3:
-    # Úplne nezávislý výber tvaru polotovaru zo všetkých unikátnych hodnôt v tabuľke
     zoznam_vsetkych_tvarov = sorted(df_mat['tvar'].unique())
     polotovar = st.selectbox("Tvar Polotovaru", zoznam_vsetkych_tvarov, key="polo_select_vsetky")
 
-# --- LOGIKA: PRIDANIE NOVEJ AKOSTI ---
 if vyber_akosti == "+ Pridať novú akosť":
     st.info(f"✨ Vytvárate novú akosť pre materiál: {material}")
     
-    # 6 stĺpcov pre detaily novej akosti
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     with c1:
         nova_akost = st.text_input("Názov novej akosti")
     with c2:
         nova_cena = st.number_input("Cena (€/kg)", min_value=0.0, format="%.2f")
     with c3:
-        # Tu pri zadávaní novej akosti si tiež vyberieš tvar, pod ktorým sa uloží
         novy_tvar_zapis = st.selectbox("Tvar pre zápis", zoznam_vsetkych_tvarov, key="novy_tvar_zapis")
     with c4:
         r1 = st.number_input("Rozmer 1", min_value=0.0, format="%.1f")
@@ -222,16 +170,6 @@ if vyber_akosti == "+ Pridať novú akosť":
                 st.error(f"Error: {e}")
         else:
             st.warning("⚠️ Zadajte názov novej akosti!")
-    
-    # Prepísanie premennej akost pre model, ak sa práve vytvára
     akost = nova_akost
 else:
-    # Ak nevyberáme "Pridať novú", premenná akost je to, čo je v selectboxe
     akost = vyber_akosti
-
-# Výsledok: Máš premenné 'material', 'akost' a 'polotovar' pripravené pre ďalší výpočet.
-        else:
-            zoznam_polo = sorted(dostupne_tvary)
-            
-        polotovar = st.selectbox("Tvar Polotovaru", zoznam_polo, key="polo_select_exist")
-
