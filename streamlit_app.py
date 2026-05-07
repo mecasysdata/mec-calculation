@@ -91,8 +91,12 @@ else:
 
 st.divider()
 
+
 # --- 6. RIADOK: MATERIÁL, AKOSŤ A INTELIGENTNÝ POLOTOVAR ---
 WEB_APP_MAT_URL = "https://script.google.com/macros/s/AKfycbzyZxjTplhk010oq7ozvovAGx5lRx72PjqUvoJUrNazx_jRfq7lqfQgbeHYG9O-NCcX/exec"
+
+# Malá poistka: premenujeme všetky stĺpce na malé písmená, aby sme sa vyhli KeyError
+df_mat.columns = [c.lower().strip() for c in df_mat.columns]
 
 # Pomocná funkcia na zoradenie rozmerov (od najväčšieho po najmenšie)
 def get_sorted_dims(a, b, c):
@@ -113,7 +117,6 @@ st.markdown("---")
 st.subheader("Výber a kontrola polotovaru")
 
 # Príprava rozmerov KOMPONENTU (zoradené)
-# Pre kruh dosadíme 0 tam, kde chýba rozmer
 komp_dims = get_sorted_dims(d, (s if tvar_item == "STV" else 0.0), (v if tvar_item == "STV" else l))
 
 # Filtrovanie vhodných polotovarov z DB
@@ -121,23 +124,23 @@ df_relevant = df_mat[(df_mat['material'] == material) & (df_mat['akost'] == vybe
 
 vhodne_moznosti = []
 for idx, r in df_relevant.iterrows():
-    # Zoradíme rozmery POLOTOVARU z tabuľky
-    polo_dims = get_sorted_dims(r['Rozmer1'], r['Rozmer2'], r['Rozmer3'])
+    # Zoradíme rozmery POLOTOVARU z tabuľky (používame malé názvy stĺpcov)
+    polo_dims = get_sorted_dims(r['rozmer1'], r['rozmer2'], r['rozmer3'])
     
     # Podmienka: Každý rozmer polotovaru musí byť >= ako rozmer komponentu
     if polo_dims[0] >= komp_dims[0] and polo_dims[1] >= komp_dims[1] and polo_dims[2] >= komp_dims[2]:
         objem = polo_dims[0] * polo_dims[1] * polo_dims[2]
-        label = f"{r['tvar']} | {r['Rozmer1']}x{r['Rozmer2']}x{r['Rozmer3']} | Cena: {r['Cena']}€/kg"
+        # Tu je oprava na 'cena' s malým c
+        label = f"{r['tvar']} | {r['rozmer1']}x{r['rozmer2']}x{r['rozmer3']} | Cena: {r['cena']}€/kg"
         vhodne_moznosti.append({"label": label, "objem": objem, "data": r})
 
-# Zoradenie podľa objemu (najmenší/najefektívnejší prvý)
+# Zoradenie podľa objemu
 vhodne_moznosti = sorted(vhodne_moznosti, key=lambda x: x['objem'])
 zoznam_final = [item['label'] for item in vhodne_moznosti]
 zoznam_final.append("+ Pridať nový/iný polotovar")
 
 vybrany_polo_str = st.selectbox("Odporúčané polotovary (najbližšie rozmery)", zoznam_final, key="polo_inteligent")
 
-# LOGIKA PRE ZOBRAZENIE FORMULÁRA ALEBO VÝSLEDKU
 if vybrany_polo_str == "+ Pridať nový/iný polotovar":
     st.info("✨ Zadajte parametre pre nový polotovar do databázy")
     c_n1, c_n2, c_n3, c_n4, c_n5, c_n6 = st.columns(6)
@@ -150,20 +153,21 @@ if vybrany_polo_str == "+ Pridať nový/iný polotovar":
 
     if st.button("💾 Uložiť polotovar", type="primary", use_container_width=True):
         if r1 > 0:
+            # Kľúče pre Apps Script nechávame tak, ako ich máš v skripte (Názov, Akost...)
             nova_data = {"Názov": item, "Akost": nova_akost, "Material": material, "Cena": nova_cena, "Tvar": novy_tvar_zapis, "Rozmer1": r1, "Rozmer2": r2, "Rozmer3": r3}
             try:
                 res = requests.post(WEB_APP_MAT_URL, json=nova_data)
                 if res.status_code == 200:
-                    st.success("Uložené do DB!"); st.cache_data.clear()
+                    st.success("Uložené!"); st.cache_data.clear()
                     st.rerun()
                 else: st.error("Chyba ukladania")
             except: st.error("Chyba spojenia")
 else:
-    # Vytiahnutie dát vybraného polotovaru pre ďalšie výpočty
+    # Vytiahnutie dát vybraného polotovaru (používame malé 'cena')
     vybrany_objekt = next(item for item in vhodne_moznosti if item['label'] == vybrany_polo_str)
     p_data = vybrany_objekt['data']
-    st.success(f"✅ Vybraný polotovar vyhovuje. Cena: {p_data['Cena']} €/kg")
+    st.success(f"✅ Vybraný polotovar vyhovuje. Cena: {p_data['cena']} €/kg")
     
-    # Tieto premenné môžeš použiť nižšie na výpočet hmotnosti/ceny
-    aktualna_cena_kg = p_data['Cena']
+    # Premenné pre ďalšie výpočty
+    aktualna_cena_kg = p_data['cena']
     aktualny_polotovar_tvar = p_data['tvar']
