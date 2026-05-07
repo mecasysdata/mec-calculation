@@ -61,7 +61,6 @@ if vyber == "+ Pridať nového zákazníka":
                     response = requests.post(WEB_APP_URL, json=novy_zakaznik_data)
                     if response.status_code == 200:
                         st.success(f"Zákazník '{zakaznik}' uložený!")
-                        st.balloons()
                         st.cache_data.clear()
                     else:
                         st.error("Chyba pri ukladaní!")
