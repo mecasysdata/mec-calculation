@@ -15,5 +15,14 @@ with col_title:
     st.title("MEC Calculation")
 
 st.divider()
+# --- 3. RIADOK S ATRIBÚTMI ---
+# Vytvoríme si stĺpce, aby sme mohli dávať prvky vedľa seba
+col1, col2, col3, col4 = st.columns(4)
 
+with col1:
+    # Atribút Dátum: 
+    # - label: "Dátum" (názov políčka)
+    # - value: defaultne nastavený na dnešok (datetime.date.today())
+    import datetime
+    datum = st.date_input("Dátum", datetime.date.today())
 
