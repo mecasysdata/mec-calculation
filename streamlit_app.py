@@ -90,100 +90,88 @@ else:
     l = 0.0
 
 st.divider()
+
 # --- 6. RIADOK: MATERIÁL, AKOSŤ A INTELIGENTNÝ POLOTOVAR ---
 WEB_APP_MAT_URL = "https://script.google.com/macros/s/AKfycbzyZxjTplhk010oq7ozvovAGx5lRx72PjqUvoJUrNazx_jRfq7lqfQgbeHYG9O-NCcX/exec"
 
-# Zjednotenie názvov stĺpcov
+# 1. Vyčistenie názvov stĺpcov
 df_mat.columns = [c.lower().strip() for c in df_mat.columns]
 
+# Pomocná funkcia na zoradenie rozmerov
 def get_sorted_dims(a, b, c):
     try:
         return sorted([float(a), float(b), float(c)], reverse=True)
     except:
         return [0.0, 0.0, 0.0]
 
-col_m1, col_m2 = st.columns(2)
+# UI: Tri stĺpce pre hlavný výber
+col_m1, col_m2, col_m3 = st.columns(3)
 
 with col_m1:
     zoznam_materialov = sorted(df_mat['material'].unique())
-    material = st.selectbox("Materiál", zoznam_materialov, key="mat_select")
+    material_vyber = st.selectbox("Materiál", zoznam_materialov, key="mat_select")
 
 with col_m2:
-    filtr_akosti = df_mat[df_mat['material'] == material]
+    filtr_akosti = df_mat[df_mat['material'] == material_vyber]
     zoznam_akosti = sorted(filtr_akosti['akost'].unique())
-    vyber_akosti = st.selectbox("Akosť", zoznam_akosti, key="akost_select")
+    akost_vyber = st.selectbox("Akosť", zoznam_akosti, key="akost_select")
 
-st.markdown("---")
-st.subheader("Výber a kontrola polotovaru")
+# Filtrovanie polotovarov podľa Materiálu a Akosti pre ponuku
+df_relevant = df_mat[(df_mat['material'] == material_vyber) & (df_mat['akost'] == akost_vyber)].copy()
 
-komp_dims = get_sorted_dims(d, (s if tvar_item == "STV" else 0.0), (v if tvar_item == "STV" else l))
-df_relevant = df_mat[(df_mat['material'] == material) & (df_mat['akost'] == vyber_akosti)].copy()
+# Pridanie stĺpca so zoradenými rozmermi pre zoradenie v zozname
+df_relevant['sort_key'] = df_relevant.apply(lambda r: get_sorted_dims(r['rozmer1'], r['rozmer2'], r['rozmer3']), axis=1)
+# Zoradenie: primárne podľa rozmerov (od najmenšieho)
+df_relevant = df_relevant.sort_values(by='sort_key')
 
+# Vytvorenie pekného zoznamu pre Selectbox (podľa tvojho obrázka)
 vhodne_moznosti = []
 for idx, r in df_relevant.iterrows():
-    polo_dims = get_sorted_dims(r['rozmer1'], r['rozmer2'], r['rozmer3'])
-    if polo_dims[0] >= komp_dims[0] and polo_dims[1] >= komp_dims[1] and polo_dims[2] >= komp_dims[2]:
-        objem = polo_dims[0] * polo_dims[1] * polo_dims[2]
-        # Zmena popisu na €/bm
-        label = f"{r['tvar']} | {r['rozmer1']}x{r['rozmer2']}x{r['rozmer3']} | Cena: {r['cena']}€/bm"
-        vhodne_moznosti.append({"label": label, "objem": objem, "data": r})
+    # Label presne podľa obrázka: Názov | Rozmery | Cena
+    label = f"{r['názov']} | {r['rozmer1']}x{r['rozmer2']}x{r['rozmer3']} | Cena: {r['cena']}€/bm"
+    vhodne_moznosti.append({"label": label, "cena": float(r['cena']), "data": r})
 
-vhodne_moznosti = sorted(vhodne_moznosti, key=lambda x: x['objem'])
-zoznam_final = [item['label'] for item in vhodne_moznosti]
-zoznam_final.append("+ Pridať nový/iný polotovar")
+zoznam_na_vyber = [item['label'] for item in vhodne_moznosti]
+zoznam_na_vyber.append("+ Pridať nový/iný polotovar")
 
-vybrany_polo_str = st.selectbox("Odporúčané polotovary (najbližšie rozmery)", zoznam_final, key="polo_inteligent")
+with col_m3:
+    vybrany_polo_str = st.selectbox("Výber polotovaru (zoznam)", zoznam_na_vyber, key="polo_inteligent")
 
-cena_z_cennika_bm = 0.0
+# --- LOGIKA PRIRADENIA CENY ---
+cena_polotovaru = 0.0
 
 if vybrany_polo_str == "+ Pridať nový/iný polotovar":
-    st.info("✨ Zadajte parametre pre nový polotovar (Cena je za bežný meter)")
+    st.info("✨ Zadajte parametre pre nový polotovar do databázy")
     c_n1, c_n2, c_n3, c_n4, c_n5, c_n6 = st.columns(6)
-    with c_n1: nova_akost = st.text_input("Akosť", value=vyber_akosti)
+    with c_n1: nova_akost = st.text_input("Akosť polotovaru", value=akost_vyber)
     with c_n2: nova_cena = st.number_input("Cena (€/bm)", min_value=0.0, format="%.2f")
     with c_n3: novy_tvar_zapis = st.selectbox("Tvar polotovaru", sorted(df_mat['tvar'].unique()), key="nz_tvar_final")
-    with c_n4: r1 = st.number_input("R1", min_value=0.0)
-    with c_n5: r2 = st.number_input("R2", min_value=0.0)
-    with c_n6: r3 = st.number_input("R3", min_value=0.0)
+    with c_n4: r1 = st.number_input("Rozmer 1", min_value=0.0)
+    with c_n5: r2 = st.number_input("Rozmer 2", min_value=0.0)
+    with c_n6: r3 = st.number_input("Rozmer 3", min_value=0.0)
 
-    cena_z_cennika_bm = nova_cena
+    cena_polotovaru = nova_cena # Ak pridáva nový, berieme túto cenu
 
-    if st.button("💾 Uložiť polotovar", type="primary", use_container_width=True):
+    if st.button("💾 Uložiť polotovar do Sheetu", type="primary", use_container_width=True):
         if r1 > 0:
-            nova_data = {"Názov": item, "Akost": nova_akost, "Material": material, "Cena": nova_cena, "Tvar": novy_tvar_zapis, "Rozmer1": r1, "Rozmer2": r2, "Rozmer3": r3}
+            # Pripravíme dáta pre Apps Script (použi názvy stĺpcov, ktoré tvoj Script očakáva)
+            nova_data = {
+                "Material": material_vyber, 
+                "Akost": nova_akost, 
+                "Cena": nova_cena, 
+                "Tvar": novy_tvar_zapis, 
+                "Rozmer1": r1, "Rozmer2": r2, "Rozmer3": r3,
+                "Názov": f"{novy_tvar_zapis} {r1}x{r2}x{r3}" # Automatický názov
+            }
             try:
                 res = requests.post(WEB_APP_MAT_URL, json=nova_data)
                 if res.status_code == 200:
-                    st.success("✅ Uložené!"); st.cache_data.clear(); st.rerun()
+                    st.success("✅ Polotovar uložený!"); st.cache_data.clear(); st.rerun()
                 else: st.error("Chyba ukladania")
             except: st.error("Chyba spojenia")
 else:
+    # Ak vybral zo zoznamu, priradíme cenu z vybraného objektu
     vybrany_objekt = next((item for item in vhodne_moznosti if item['label'] == vybrany_polo_str), None)
     if vybrany_objekt:
-        p_data = vybrany_objekt['data']
-        cena_z_cennika_bm = float(p_data['cena'])
-        st.success(f"✅ Cena polotovaru: {cena_z_cennika_bm} €/bm")
-
-# --- FINÁLNA KALKULÁCIA CENY ---
-st.divider()
-st.subheader("Ekonomika komponentu")
-
-# Rozmer, ktorý určuje dĺžku (v mm)
-dlzka_komp_mm = l if tvar_item == "KR" else d
-
-if dlzka_komp_mm > 0 and cena_z_cennika_bm > 0:
-    # VÝPOČET: (Cena za bm / 1000) * dĺžka v mm
-    cena_za_mm = cena_z_cennika_bm / 1000
-    cena_ks = cena_za_mm * dlzka_komp_mm
-    
-    col_res1, col_res2 = st.columns(2)
-    with col_res1:
-        st.metric(label="Cena za bežný meter", value=f"{cena_z_cennika_bm:.2f} €/bm")
-    with col_res2:
-        st.metric(label="Cena za 1 ks komponentu", value=f"{cena_ks:.4f} €", help=f"Výpočet: ({cena_z_cennika_bm} / 1000) * {dlzka_komp_mm}")
-    
-    st.session_state['vypocitana_cena_ks'] = cena_ks
-else:
-    st.warning("⚠️ Doplňte rozmery a vyberte polotovar pre výpočet ceny.")
-
-
+        cena_polotovaru = vybrany_objekt['cena']
+        st.success(f"✅ Vybraná cena: {cena_polotovaru} €/bm")
