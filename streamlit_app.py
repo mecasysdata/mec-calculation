@@ -238,3 +238,27 @@ if hustota_auto == 0.0:
     hustota = st.number_input("Zadajte hustotu manuálne (kg/m³)", min_value=0.0, key="manual_rho")
 
 st.write(f"**Subcategory:** {subcategory} | **Hustota:** {hustota} kg/m³")
+
+import math
+
+# Výpočty geometrie
+if tvar_item == "KR":
+    # Plocha kruhu: (pi * d^2) / 4
+    plocha_prierezu = (math.pi * (d**2)) / 4
+    # Objem * hustota / prevod na m3
+    hmotnost_kusu = (plocha_prierezu * l * hustota) / 1e9
+else:
+    # Plocha obdĺžnika: s * v
+    plocha_prierezu = s * v
+    # Objem (s*v*d) * hustota / prevod na m3
+    hmotnost_kusu = (s * v * d * hustota) / 1e9
+
+# Celková hmotnosť za všetky kusy
+hmotnost_celkom = hmotnost_kusu * pocet_kusov
+
+# Zobrazenie výsledkov v Streamlite
+st.subheader("Výsledky výpočtu hmotnosti")
+c1, c2, c3 = st.columns(3)
+c1.metric("Plocha prierezu", f"{plocha_prierezu:.2f} mm²")
+c2.metric("Hmotnosť 1 kusu", f"{hmotnost_kusu:.3f} kg")
+c3.metric("Hmotnosť celkom", f"{hmotnost_celkom:.2f} kg")
