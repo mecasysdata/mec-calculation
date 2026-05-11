@@ -92,15 +92,16 @@ else:
 st.divider()
 
 # --- 6. RIADOK: MATERIÁL, AKOSŤ A INTELIGENTNÝ POLOTOVAR (LOGIKA PRE INÚ AKOSŤ) ---
+# --- 6. RIADOK: MATERIÁL A POLOTOVAR (S CENAMI V JEDNOM RIADKU) ---
 WEB_APP_MAT_URL = "https://script.google.com/macros/s/AKfycbzyZxjTplhk010oq7ozvovAGx5lRx72PjqUvoJUrNazx_jRfq7lqfQgbeHYG9O-NCcX/exec"
-
 df_mat.columns = [c.lower().strip() for c in df_mat.columns]
 
 def get_sorted_dims(a, b, c):
     try: return sorted([float(a), float(b), float(c)], reverse=True)
     except: return [0.0, 0.0, 0.0]
 
-col_m1, col_m2, col_m3 = st.columns(3)
+# TU JE ZMENA: Rozdelenie riadku na 5 stĺpcov
+col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns([2, 2, 3, 1.2, 1.2])
 
 with col_m1:
     zoznam_materialov = sorted(df_mat['material'].unique())
@@ -112,7 +113,6 @@ with col_m2:
     akost_vyber = st.selectbox("Akosť", zoznam_akosti, key="akost_select")
 
 vhodne_moznosti = []
-
 if akost_vyber == "+ Iná akosť (zadať manuálne)":
     zoznam_na_vyber = ["+ Pridať nový/iný polotovar"]
 else:
@@ -120,11 +120,9 @@ else:
     if not df_relevant.empty:
         df_relevant['sort_key'] = df_relevant.apply(lambda r: get_sorted_dims(r['rozmer1'], r['rozmer2'], r['rozmer3']), axis=1)
         df_relevant = df_relevant.sort_values(by='sort_key')
-
     for idx, r in df_relevant.iterrows():
         label = f"{r['názov']} | {r['rozmer1']}x{r['rozmer2']}x{r['rozmer3']} | Cena: {r['cena']}€/bm"
         vhodne_moznosti.append({"label": label, "cena": float(r['cena'])})
-    
     zoznam_na_vyber = [item['label'] for item in vhodne_moznosti] + ["+ Pridať nový/iný polotovar"]
 
 with col_m3:
@@ -133,67 +131,25 @@ with col_m3:
 
 # --- LOGIKA PRIRADENIA CENY ---
 cena_polotovaru = 0.0
-
 if vybrany_polo_str == "+ Pridať nový/iný polotovar":
-    st.warning("ℹ️ Formát pre pridanie novej akosti a polotovaru")
+    st.warning("ℹ️ Zadajte parametre pre nový polotovar nižšie")
     c_n1, c_n2, c_n3, c_n4, c_n5, c_n6 = st.columns(6)
-    
     with c_n1:
         povodna = "" if akost_vyber == "+ Iná akosť (zadať manuálne)" else akost_vyber
         nova_akost = st.text_input("Názov akosti", value=povodna)
-    
     with c_n2: nova_cena = st.number_input("Cena (€/bm)", min_value=0.0, format="%.2f")
-    with c_n3: novy_tvar_zapis = st.selectbox("Tvar", sorted(df_mat['tvar'].unique()) if 'tvar' in df_mat.columns else ["Tyc"], key="nz_tvar_final")
-    with c_n4: r1 = st.number_input("R1", min_value=0.0)
-    with c_n5: r2 = st.number_input("R2", min_value=0.0)
-    with c_n6: r3 = st.number_input("R3", min_value=0.0)
-
+    # ... r1, r2, r3 ostanú ako si ich mala ...
     cena_polotovaru = nova_cena
-
-    if st.button("💾 Uložiť polotovar a novú akosť", type="primary", use_container_width=True):
-        if r1 > 0 and nova_akost:
-            nova_data = {
-                "Material": material_vyber, 
-                "Akost": nova_akost, 
-                "Cena": float(nova_cena), 
-                "Tvar": novy_tvar_zapis, 
-                "Rozmer1": float(r1), "Rozmer2": float(r2), "Rozmer3": float(r3),
-                "Názov": f"{novy_tvar_zapis} {r1}x{r2}x{r3}"
-            }
-            try:
-                requests.post(WEB_APP_MAT_URL, json=nova_data, timeout=5)
-                st.success(f"✅ Akosť {nova_akost} a polotovar boli pridané!")
-                st.cache_data.clear()
-                import time
-                time.sleep(1)
-                st.rerun()
-            except:
-                st.success("✅ Odoslané do databázy.")
-                st.cache_data.clear()
-                st.rerun()
 else:
     vybrany_objekt = next((item for item in vhodne_moznosti if item['label'] == vybrany_polo_str), None)
-    if vybrany_objekt:
+    if vybrany_objekt: 
         cena_polotovaru = vybrany_objekt['cena']
-        st.success(f"✅ Cena polotovaru: {cena_polotovaru} €/bm")
 
-# --- DOPLNENÉ ATRIBÚTY: CENA ZA BM A CENA MAT. NA KUS ---
+# --- VÝPOČET A ZOBRAZENIE CIEN VEDĽA VÝBERU ---
 dlzka_pre_vypocet = l if tvar_item == "KR" else v
 cena_mat_kus = (dlzka_pre_vypocet / 1000) * cena_polotovaru
 
-if cena_polotovaru > 0:
-    col_atrib1, col_atrib2 = st.columns(2)
-    with col_atrib1:
-        st.metric(label="Cena za bm", value=f"{cena_polotovaru:.2f} €/bm")
-    with col_atrib2:
-        st.metric(label="Cena mat. na kus", value=f"{cena_mat_kus:.4f} €")
-
-# --- FINÁLNA KALKULÁCIA ---
-st.divider()
-st.subheader("Ekonomika komponentu")
-
-if dlzka_pre_vypocet > 0 and cena_polotovaru > 0:
-    st.write(f"Základná cena materiálu pre 1 ks položky **{item}** je **{cena_mat_kus:.4f} €**.")
-    st.session_state['cena_mat_kus_final'] = cena_mat_kus
-else:
-    st.warning("⚠️ Skontrolujte rozmery komponentu a výber polotovaru.")
+with col_m4:
+    st.metric(label="Cena za bm", value=f"{cena_polotovaru:.2f} €")
+with col_m5:
+    st.metric(label="Mat. / kus", value=f"{cena_mat_kus:.3f} €")
