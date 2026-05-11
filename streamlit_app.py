@@ -259,4 +259,4 @@ subcategory, hustota = get_mecasys_logic(material_vyber, relevantna_akost)
 
 # 3. KONTROLNÝ VÝPIS PRE PROGRAMÁTORA (Skrytý alebo v expaderi)
 # Tento výpis slúži len na overenie, že premenné sú správne naplnené
-# st.write(f"DEBUG: Subcategory={subcategory}, Hustota={hustota} kg/m3")
+st.write(f"DEBUG: Subcategory={subcategory}, Hustota={hustota} kg/m3")
