@@ -82,7 +82,7 @@ else:
 
 st.divider()
 
-# --- 6. RIADOK: MATERIÁL A POLOTOVAR (UPRAVENÉ PRE VIACERO AKOSTÍ) ---
+# --- 6. RIADOK: MATERIÁL A POLOTOVAR (UPRAVENÉ PRE DYNAMICKÚ AKOSŤ) ---
 df_mat.columns = [c.lower().strip() for c in df_mat.columns]
 def get_sorted_dims(a, b, c):
     try: return sorted([float(a), float(b), float(c)], reverse=True)
@@ -96,7 +96,6 @@ with col_m1:
 
 with col_m2:
     filtr_akosti_vsetky = sorted(df_mat[df_mat['material'] == material_vyber]['akost'].unique().astype(str))
-    # Zmena selectboxu na multiselect
     akost_vyber_list = st.multiselect("Výber akostí", options=filtr_akosti_vsetky, key="akost_multi")
     manual_akost_check = st.checkbox("+ Iná akosť (manuálne)")
 
@@ -104,7 +103,6 @@ vhodne_moznosti = []
 if manual_akost_check:
     zoznam_na_vyber = ["+ Pridať nový/iný polotovar"]
 else:
-    # Filtrujeme podľa listu vybraných akostí
     df_relevant = df_mat[(df_mat['material'] == material_vyber) & (df_mat['akost'].astype(str).isin(akost_vyber_list))].copy()
     
     if tvar_item == "KR":
@@ -118,20 +116,23 @@ else:
         df_relevant['sort_key'] = df_relevant.apply(lambda r: get_sorted_dims(r['rozmer1'], r['rozmer2'], r['rozmer3']), axis=1)
         df_relevant = df_relevant.sort_values(by='sort_key')
         for idx, r in df_relevant.iterrows():
-            # Pridaná akosť do labelu pre lepšiu orientáciu pri výbere
+            # Label obsahuje akosť, aby technolog videl čo vyberá
             label = f"[{r['akost']}] {r['názov']} | {r['rozmer1']}x{r['rozmer2']}x{r['rozmer3']} | Cena: {r['cena']}€/bm"
-            vhodne_moznosti.append({"label": label, "cena": float(r['cena'])})
+            # Do zoznamu ukladáme aj čistú akosť pre neskoršie priradenie k MECASYS
+            vhodne_moznosti.append({"label": label, "cena": float(r['cena']), "akost_povodna": str(r['akost'])})
     zoznam_na_vyber = [item['label'] for item in vhodne_moznosti] + ["+ Pridať nový/iný polotovar"]
 
 with col_m3:
     idx_start = len(zoznam_na_vyber)-1 if manual_akost_check else 0
     vybrany_polo_str = st.selectbox("Výber polotovaru (zoznam)", zoznam_na_vyber, index=idx_start, key="polo_inteligent")
 
+# --- URČENIE FINÁLNEJ AKOSTI PRE VÝPOČET ---
 cena_polotovaru = 0.0
+relevantna_akost = ""
+
 if vybrany_polo_str == "+ Pridať nový/iný polotovar":
     c_n1, c_n2, c_n3, c_n4, c_n5, c_n6 = st.columns(6)
     with c_n1:
-        # Ak je vybratá akosť manuálne, použije sa vstup, inak prvá z multiselectu
         povodna_akost_val = akost_vyber_list[0] if akost_vyber_list else ""
         nova_akost = st.text_input("Názov akosti", value="" if manual_akost_check else povodna_akost_val)
     with c_n2: nova_cena = st.number_input("Cena (€/bm)", min_value=0.0, format="%.2f")
@@ -140,22 +141,18 @@ if vybrany_polo_str == "+ Pridať nový/iný polotovar":
     with c_n5: r3 = st.number_input("Rozmer 3", min_value=0.0)
     with c_n6: nazov_pol = st.text_input("Názov polotovaru", value="MANUAL")
     cena_polotovaru = nova_cena
+    relevantna_akost = nova_akost.upper().replace(" ", "").strip()
 else:
     vybrany_objekt = next((item for item in vhodne_moznosti if item['label'] == vybrany_polo_str), None)
-    if vybrany_objekt: cena_polotovaru = vybrany_objekt['cena']
+    if vybrany_objekt: 
+        cena_polotovaru = vybrany_objekt['cena']
+        # Akosť sa priradí podľa toho, čo technológ SKUTOČNE vybral
+        relevantna_akost = vybrany_objekt['akost_povodna'].upper().replace(" ", "").strip()
 
 dlzka_pre_vypocet = l if tvar_item == "KR" else d
 cena_mat_kus = (dlzka_pre_vypocet / 1000) * cena_polotovaru
 
 # --- 7. KLASIFIKÁCIA MECASYS ---
-if manual_akost_check:
-    relevantna_akost = nova_akost.upper().replace(" ", "").strip()
-elif akost_vyber_list:
-    # Pre MECASYS logiku berieme prvú vybranú akosť zo zoznamu
-    relevantna_akost = akost_vyber_list[0].upper().replace(" ", "").strip()
-else:
-    relevantna_akost = ""
-
 def get_mecasys_logic(cat, akost_str):
     sub = "OSTATNÉ"
     rho = 0.0
@@ -261,7 +258,7 @@ with rk7: st.metric("VSTUPNÉ NÁKLADY", f"{vstupne_naklady:.3f} €", delta=f"{
 st.markdown(
     f"""
     <div style="background-color: #f1f3f6; padding: 10px; border-radius: 5px; font-size: 0.85em; color: #555;">
-    <strong>Subcategory:</strong> {subcategory} | <strong>Hustota:</strong> {hustota:.0f} kg/m³ | 
+    <strong>Použitá akosť:</strong> {relevantna_akost} | <strong>Subcategory:</strong> {subcategory} | <strong>Hustota:</strong> {hustota:.0f} kg/m³ | 
     <strong>Plocha prierezu:</strong> {plocha_prierezu:.2f} mm² | <strong>Hmotnosť:</strong> {hmotnost_kusu:.3f} kg | 
     <strong>Povrch:</strong> {plocha_prierez_dm2:.3f} dm²
     </div>
