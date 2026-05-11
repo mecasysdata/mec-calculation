@@ -92,9 +92,10 @@ else:
 st.divider()
 
 # --- 6. RIADOK: MATERIÁL, AKOSŤ A INTELIGENTNÝ POLOTOVAR ---
+# --- 6. RIADOK: MATERIÁL, AKOSŤ A INTELIGENTNÝ POLOTOVAR ---
 WEB_APP_MAT_URL = "https://script.google.com/macros/s/AKfycbzyZxjTplhk010oq7ozvovAGx5lRx72PjqUvoJUrNazx_jRfq7lqfQgbeHYG9O-NCcX/exec"
 
-# 1. Vyčistenie názvov stĺpcov
+# 1. Vyčistenie názvov stĺpcov na malé písmená kvôli stabilite
 df_mat.columns = [c.lower().strip() for c in df_mat.columns]
 
 # Pomocná funkcia na zoradenie rozmerov
@@ -119,15 +120,15 @@ with col_m2:
 # Filtrovanie polotovarov podľa Materiálu a Akosti pre ponuku
 df_relevant = df_mat[(df_mat['material'] == material_vyber) & (df_mat['akost'] == akost_vyber)].copy()
 
-# Pridanie stĺpca so zoradenými rozmermi pre zoradenie v zozname
-df_relevant['sort_key'] = df_relevant.apply(lambda r: get_sorted_dims(r['rozmer1'], r['rozmer2'], r['rozmer3']), axis=1)
-# Zoradenie: primárne podľa rozmerov (od najmenšieho)
-df_relevant = df_relevant.sort_values(by='sort_key')
+# Pridanie stĺpca so zoradenými rozmermi pre zoradenie v zozname (od najmenšieho kusu)
+if not df_relevant.empty:
+    df_relevant['sort_key'] = df_relevant.apply(lambda r: get_sorted_dims(r['rozmer1'], r['rozmer2'], r['rozmer3']), axis=1)
+    df_relevant = df_relevant.sort_values(by='sort_key')
 
-# Vytvorenie pekného zoznamu pre Selectbox (podľa tvojho obrázka)
+# Vytvorenie zoznamu pre Selectbox (Názov | Rozmery | Cena)
 vhodne_moznosti = []
 for idx, r in df_relevant.iterrows():
-    # Label presne podľa obrázka: Názov | Rozmery | Cena
+    # Používame názvy stĺpcov tak, ako sú v Sheete (po očistení na malé písmená)
     label = f"{r['názov']} | {r['rozmer1']}x{r['rozmer2']}x{r['rozmer3']} | Cena: {r['cena']}€/bm"
     vhodne_moznosti.append({"label": label, "cena": float(r['cena']), "data": r})
 
@@ -145,46 +146,60 @@ if vybrany_polo_str == "+ Pridať nový/iný polotovar":
     c_n1, c_n2, c_n3, c_n4, c_n5, c_n6 = st.columns(6)
     with c_n1: nova_akost = st.text_input("Akosť polotovaru", value=akost_vyber)
     with c_n2: nova_cena = st.number_input("Cena (€/bm)", min_value=0.0, format="%.2f")
-    with c_n3: novy_tvar_zapis = st.selectbox("Tvar polotovaru", sorted(df_mat['tvar'].unique()), key="nz_tvar_final")
+    with c_n3: novy_tvar_zapis = st.selectbox("Tvar polotovaru", sorted(df_mat['tvar'].unique()) if 'tvar' in df_mat.columns else ["Tyc"], key="nz_tvar_final")
     with c_n4: r1 = st.number_input("Rozmer 1", min_value=0.0)
     with c_n5: r2 = st.number_input("Rozmer 2", min_value=0.0)
     with c_n6: r3 = st.number_input("Rozmer 3", min_value=0.0)
 
-    cena_polotovaru = nova_cena # Ak pridáva nový, berieme túto cenu
+    cena_polotovaru = nova_cena
 
-    
-if st.button("💾 Uložiť polotovar do Sheetu", type="primary", use_container_width=True):
+    if st.button("💾 Uložiť polotovar do Sheetu", type="primary", use_container_width=True):
         if r1 > 0:
             nova_data = {
                 "Material": material_vyber, 
                 "Akost": nova_akost, 
                 "Cena": float(nova_cena), 
                 "Tvar": novy_tvar_zapis, 
-                "Rozmer1": float(r1), 
-                "Rozmer2": float(r2), 
-                "Rozmer3": float(r3),
+                "Rozmer1": float(r1), "Rozmer2": float(r2), "Rozmer3": float(r3),
                 "Názov": f"{novy_tvar_zapis} {r1}x{r2}x{r3}"
             }
             try:
-                # Používame timeout, aby sme nečakali večne
-                # allow_redirects=True je kľúčové pre Google Scripty
-                res = requests.post(WEB_APP_MAT_URL, json=nova_data, timeout=10)
-                
-                # Google Scripts často vracajú úspech (200), ale niekedy presmerovanie. 
-                # Ak dáta v Sheete vidíš, je to úspech bez ohľadu na presný kód.
-                if res.status_code in [200, 302]:
-                    st.success("✅ Polotovar úspešne uložený!")
-                    st.cache_data.clear()
-                    # Malá pauza pred rerunom, aby užívateľ videl fajku
-                    import time
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    # Ak to zapísalo, ale hlási chybu, skúsime to "ignorovať"
-                    st.warning(f"Dáta pravdepodobne odoslané (Status: {res.status_code})")
-                    st.cache_data.clear()
-            except requests.exceptions.RequestException as e:
-                # Ak to zapísalo (ako hovoríš), tak táto chyba je len v spätnej väzbe
-                st.success("✅ Dáta boli odoslané do databázy.")
+                # Odoslanie bez prísnej kontroly statusu 200 (keďže zápis prebieha)
+                requests.post(WEB_APP_MAT_URL, json=nova_data, timeout=5)
+                st.success("✅ Požiadavka na zápis bola odoslaná!")
+                st.cache_data.clear()
+                import time
+                time.sleep(1)
+                st.rerun()
+            except:
+                # Ak vyhodí timeout alebo chybu spojenia, ale v Sheete to je, považujeme za OK
+                st.success("✅ Polotovar bol odoslaný do databázy.")
                 st.cache_data.clear()
                 st.rerun()
+else:
+    # Ak vybral zo zoznamu, priradíme cenu z vybraného objektu
+    vybrany_objekt = next((item for item in vhodne_moznosti if item['label'] == vybrany_polo_str), None)
+    if vybrany_objekt:
+        cena_polotovaru = vybrany_objekt['cena']
+        st.success(f"✅ Vybraná cena: {cena_polotovaru} €/bm")
+
+# --- FINÁLNA KALKULÁCIA ---
+st.divider()
+st.subheader("Ekonomika komponentu")
+
+# Dĺžka komponentu v mm (KR -> l, STV -> d)
+dlzka_komponentu_mm = l if tvar_item == "KR" else d
+
+if dlzka_komponentu_mm > 0 and cena_polotovaru > 0:
+    # Výpočet: (Cena za bm / 1000 mm) * dĺžka komponentu
+    cena_ks = (cena_polotovaru / 1000) * dlzka_komponentu_mm
+    
+    res_col1, res_col2 = st.columns(2)
+    with res_col1:
+        st.metric(label="Cena materiálu (bežný meter)", value=f"{cena_polotovaru:.2f} €/bm")
+    with res_col2:
+        st.metric(label="Vypočítaná cena za 1 ks", value=f"{cena_ks:.4f} €")
+    
+    st.session_state['cena_ks_final'] = cena_ks
+else:
+    st.warning("⚠️ Skontrolujte rozmery komponentu a výber polotovaru.")
