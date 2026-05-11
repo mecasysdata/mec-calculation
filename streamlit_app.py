@@ -159,7 +159,7 @@ else:
     if vybrany_objekt: cena_polotovaru = vybrany_objekt['cena']
 
 # Výpočet a zobrazenie cien
-dlzka_pre_vypocet = l if tvar_item == "KR" else v
+dlzka_pre_vypocet = l if tvar_item == "KR" else d
 cena_mat_kus = (dlzka_pre_vypocet / 1000) * cena_polotovaru
 
 with col_m4:
