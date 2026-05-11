@@ -237,8 +237,6 @@ if hustota_auto == 0.0:
     st.error(f"❌ Hustota pre akosť '{relevantna_akost}' nebola rozpoznaná.")
     hustota = st.number_input("Zadajte hustotu manuálne (kg/m³)", min_value=0.0, key="manual_rho")
 
-st.write(f"**Subcategory:** {subcategory} | **Hustota:** {hustota} kg/m³")
-
 import math
 
 # Výpočty geometrie
