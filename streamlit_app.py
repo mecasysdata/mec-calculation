@@ -82,29 +82,31 @@ else:
 
 st.divider()
 
-# --- 6. RIADOK: MATERIÁL A POLOTOVAR (PRÍPRAVA DÁT) ---
+# --- 6. RIADOK: MATERIÁL A POLOTOVAR (UPRAVENÉ PRE VIACERO AKOSTÍ) ---
 df_mat.columns = [c.lower().strip() for c in df_mat.columns]
 def get_sorted_dims(a, b, c):
     try: return sorted([float(a), float(b), float(c)], reverse=True)
     except: return [0.0, 0.0, 0.0]
 
-# Výber materiálu a akosti v hornom riadku sekcie
-col_m1, col_m2, col_m3 = st.columns([2, 2, 4])
+col_m1, col_m2, col_m3 = st.columns([2, 3, 3])
 
 with col_m1:
     zoznam_materialov = sorted(df_mat['material'].unique())
     material_vyber = st.selectbox("Materiál", zoznam_materialov, key="mat_select")
 
 with col_m2:
-    filtr_akosti = df_mat[df_mat['material'] == material_vyber]
-    zoznam_akosti = sorted(filtr_akosti['akost'].unique().astype(str)) + ["+ Iná akosť (zadať manuálne)"]
-    akost_vyber = st.selectbox("Akosť", zoznam_akosti, key="akost_select")
+    filtr_akosti_vsetky = sorted(df_mat[df_mat['material'] == material_vyber]['akost'].unique().astype(str))
+    # Zmena selectboxu na multiselect
+    akost_vyber_list = st.multiselect("Výber akostí", options=filtr_akosti_vsetky, key="akost_multi")
+    manual_akost_check = st.checkbox("+ Iná akosť (manuálne)")
 
 vhodne_moznosti = []
-if akost_vyber == "+ Iná akosť (zadať manuálne)":
+if manual_akost_check:
     zoznam_na_vyber = ["+ Pridať nový/iný polotovar"]
 else:
-    df_relevant = df_mat[(df_mat['material'] == material_vyber) & (df_mat['akost'].astype(str) == akost_vyber)].copy()
+    # Filtrujeme podľa listu vybraných akostí
+    df_relevant = df_mat[(df_mat['material'] == material_vyber) & (df_mat['akost'].astype(str).isin(akost_vyber_list))].copy()
+    
     if tvar_item == "KR":
         mask = df_relevant['názov'].str.contains('KR|6HR|TR', case=False, na=False)
         df_relevant = df_relevant[mask]
@@ -116,21 +118,22 @@ else:
         df_relevant['sort_key'] = df_relevant.apply(lambda r: get_sorted_dims(r['rozmer1'], r['rozmer2'], r['rozmer3']), axis=1)
         df_relevant = df_relevant.sort_values(by='sort_key')
         for idx, r in df_relevant.iterrows():
-            label = f"{r['názov']} | {r['rozmer1']}x{r['rozmer2']}x{r['rozmer3']} | Cena: {r['cena']}€/bm"
+            # Pridaná akosť do labelu pre lepšiu orientáciu pri výbere
+            label = f"[{r['akost']}] {r['názov']} | {r['rozmer1']}x{r['rozmer2']}x{r['rozmer3']} | Cena: {r['cena']}€/bm"
             vhodne_moznosti.append({"label": label, "cena": float(r['cena'])})
     zoznam_na_vyber = [item['label'] for item in vhodne_moznosti] + ["+ Pridať nový/iný polotovar"]
 
 with col_m3:
-    idx_start = len(zoznam_na_vyber)-1 if akost_vyber == "+ Iná akosť (zadať manuálne)" else 0
+    idx_start = len(zoznam_na_vyber)-1 if manual_akost_check else 0
     vybrany_polo_str = st.selectbox("Výber polotovaru (zoznam)", zoznam_na_vyber, index=idx_start, key="polo_inteligent")
 
-# Spracovanie ceny materiálu a manuálneho vstupu
 cena_polotovaru = 0.0
 if vybrany_polo_str == "+ Pridať nový/iný polotovar":
     c_n1, c_n2, c_n3, c_n4, c_n5, c_n6 = st.columns(6)
     with c_n1:
-        povodna = "" if akost_vyber == "+ Iná akosť (zadať manuálne)" else akost_vyber
-        nova_akost = st.text_input("Názov akosti", value=povodna)
+        # Ak je vybratá akosť manuálne, použije sa vstup, inak prvá z multiselectu
+        povodna_akost_val = akost_vyber_list[0] if akost_vyber_list else ""
+        nova_akost = st.text_input("Názov akosti", value="" if manual_akost_check else povodna_akost_val)
     with c_n2: nova_cena = st.number_input("Cena (€/bm)", min_value=0.0, format="%.2f")
     with c_n3: r1 = st.number_input("Rozmer 1", min_value=0.0)
     with c_n4: r2 = st.number_input("Rozmer 2", min_value=0.0)
@@ -145,10 +148,13 @@ dlzka_pre_vypocet = l if tvar_item == "KR" else d
 cena_mat_kus = (dlzka_pre_vypocet / 1000) * cena_polotovaru
 
 # --- 7. KLASIFIKÁCIA MECASYS ---
-if akost_vyber == "+ Iná akosť (zadať manuálne)":
+if manual_akost_check:
     relevantna_akost = nova_akost.upper().replace(" ", "").strip()
+elif akost_vyber_list:
+    # Pre MECASYS logiku berieme prvú vybranú akosť zo zoznamu
+    relevantna_akost = akost_vyber_list[0].upper().replace(" ", "").strip()
 else:
-    relevantna_akost = akost_vyber.upper().replace(" ", "").strip()
+    relevantna_akost = ""
 
 def get_mecasys_logic(cat, akost_str):
     sub = "OSTATNÉ"
@@ -219,7 +225,6 @@ hmotnost_celkom = hmotnost_kusu * pocet_kusov
 
 # --- NOVÝ KOMBINOVANÝ RIADOK: KOOPERÁCIA A FINÁLNE CENY ---
 st.write("---")
-# Rozdelenie na 7 stĺpcov pre prehľadnosť v jednom riadku
 rk1, rk2, rk3, rk4, rk5, rk6, rk7 = st.columns([0.8, 1.5, 1.5, 1.2, 1.2, 1.2, 1.5])
 
 with rk1:
