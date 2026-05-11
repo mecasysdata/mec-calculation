@@ -82,7 +82,7 @@ else:
 
 st.divider()
 
-# --- 6. RIADOK: MATERIÁL A POLOTOVAR (UPRAVENÉ PRE DYNAMICKÚ AKOSŤ) ---
+# --- 6. RIADOK: MATERIÁL A POLOTOVAR ---
 df_mat.columns = [c.lower().strip() for c in df_mat.columns]
 def get_sorted_dims(a, b, c):
     try: return sorted([float(a), float(b), float(c)], reverse=True)
@@ -116,9 +116,7 @@ else:
         df_relevant['sort_key'] = df_relevant.apply(lambda r: get_sorted_dims(r['rozmer1'], r['rozmer2'], r['rozmer3']), axis=1)
         df_relevant = df_relevant.sort_values(by='sort_key')
         for idx, r in df_relevant.iterrows():
-            # Label obsahuje akosť, aby technolog videl čo vyberá
             label = f"[{r['akost']}] {r['názov']} | {r['rozmer1']}x{r['rozmer2']}x{r['rozmer3']} | Cena: {r['cena']}€/bm"
-            # Do zoznamu ukladáme aj čistú akosť pre neskoršie priradenie k MECASYS
             vhodne_moznosti.append({"label": label, "cena": float(r['cena']), "akost_povodna": str(r['akost'])})
     zoznam_na_vyber = [item['label'] for item in vhodne_moznosti] + ["+ Pridať nový/iný polotovar"]
 
@@ -126,7 +124,6 @@ with col_m3:
     idx_start = len(zoznam_na_vyber)-1 if manual_akost_check else 0
     vybrany_polo_str = st.selectbox("Výber polotovaru (zoznam)", zoznam_na_vyber, index=idx_start, key="polo_inteligent")
 
-# --- URČENIE FINÁLNEJ AKOSTI PRE VÝPOČET ---
 cena_polotovaru = 0.0
 relevantna_akost = ""
 
@@ -146,7 +143,6 @@ else:
     vybrany_objekt = next((item for item in vhodne_moznosti if item['label'] == vybrany_polo_str), None)
     if vybrany_objekt: 
         cena_polotovaru = vybrany_objekt['cena']
-        # Akosť sa priradí podľa toho, čo technológ SKUTOČNE vybral
         relevantna_akost = vybrany_objekt['akost_povodna'].upper().replace(" ", "").strip()
 
 dlzka_pre_vypocet = l if tvar_item == "KR" else d
@@ -207,7 +203,7 @@ hustota = hustota_auto
 if hustota_auto == 0.0:
     hustota = st.number_input("Manuálna hustota (kg/m³)", min_value=0.0, key="manual_rho")
 
-# --- VÝPOČET GEOMETRIE ---
+# --- 8. VÝPOČET GEOMETRIE ---
 if tvar_item == "KR":
     plocha_prierezu = (math.pi * (d**2)) / 4
     povrch_celkovy_mm2 = (2 * plocha_prierezu) + (math.pi * d * l)
@@ -220,7 +216,7 @@ else:
 plocha_prierez_dm2 = povrch_celkovy_mm2 / 10000 
 hmotnost_celkom = hmotnost_kusu * pocet_kusov
 
-# --- NOVÝ KOMBINOVANÝ RIADOK: KOOPERÁCIA A FINÁLNE CENY ---
+# --- 9. KOOPERÁCIA A FINÁLNE CENY (AKTUALIZOVANÁ LOGIKA FILTROVANIA) ---
 st.write("---")
 rk1, rk2, rk3, rk4, rk5, rk6, rk7 = st.columns([0.8, 1.5, 1.5, 1.2, 1.2, 1.2, 1.5])
 
@@ -229,12 +225,24 @@ with rk1:
 
 cena_kooperacia = 0.0
 if je_kooperacia:
-    with rk2:
-        vybrany_druh = st.selectbox("Druh koop.", sorted(df_koop['druh'].unique()), key="druh_k")
     with rk3:
-        mats_koop = sorted(df_koop[df_koop['druh'] == vybrany_druh]['material'].unique())
-        vybrany_mat_koop = st.selectbox("Mat. koop.", mats_koop, key="mat_k")
+        # 1. Získame unikátne materiály z cenníka kooperácií
+        zoznam_vsetkych_mat_koop = sorted(df_koop['material'].unique())
+        
+        # 2. Skúsime nájsť index materiálu, ktorý bol vybraný hore v sekcii Komponent
+        try:
+            default_idx = zoznam_vsetkych_mat_koop.index(material_vyber)
+        except ValueError:
+            default_idx = 0 # Ak sa nenašiel, dáme prvý v zozname
+            
+        vybrany_mat_koop = st.selectbox("Mat. koop.", zoznam_vsetkych_mat_koop, index=default_idx, key="mat_k")
     
+    with rk2:
+        # 3. Vyfiltrujeme operácie (druh) len pre tento konkrétny vybraný materiál koop
+        mozne_operacie = sorted(df_koop[df_koop['material'] == vybrany_mat_koop]['druh'].unique())
+        vybrany_druh = st.selectbox("Druh koop.", mozne_operacie, key="druh_k")
+    
+    # Doťahovanie údajov z riadku
     riadok_koop = df_koop[(df_koop['druh'] == vybrany_druh) & (df_koop['material'] == vybrany_mat_koop)].iloc[0]
     tarifa = float(riadok_koop['tarifa'])
     jednotka = str(riadok_koop['jednotka']).strip().lower()
