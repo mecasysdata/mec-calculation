@@ -25,7 +25,7 @@ df = pd.read_csv(sheet_url)
 material_sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQf4EiqZt1grkazJgfYWVhG0M8FGLNCjaGk6dcXhO3r04JQuZ9Qxv1jelDo3c8hBLy7Ny5C1pZqvbfS/pub?output=csv"
 df_mat = pd.read_csv(material_sheet_url)
 
-# Cenník kooperácií (tvoj pôvodný link)
+# Cenník kooperácií
 sheet_koop_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRfPBZ4TCpQyiqybU0ADu3AMwHCi2qOKifQAOnnTWnorVNJ1SVxtN6zJzXthOxCVwtXWp__Bp_-nto0/pub?gid=1180392224&single=true&output=csv"
 @st.cache_data
 def load_koop_data(url):
@@ -82,13 +82,14 @@ else:
 
 st.divider()
 
-# --- 6. RIADOK: MATERIÁL A POLOTOVAR ---
+# --- 6. RIADOK: MATERIÁL A POLOTOVAR (PRÍPRAVA DÁT) ---
 df_mat.columns = [c.lower().strip() for c in df_mat.columns]
 def get_sorted_dims(a, b, c):
     try: return sorted([float(a), float(b), float(c)], reverse=True)
     except: return [0.0, 0.0, 0.0]
 
-col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns([2, 2, 3, 1.2, 1.2])
+# Výber materiálu a akosti v hornom riadku sekcie
+col_m1, col_m2, col_m3 = st.columns([2, 2, 4])
 
 with col_m1:
     zoznam_materialov = sorted(df_mat['material'].unique())
@@ -123,6 +124,7 @@ with col_m3:
     idx_start = len(zoznam_na_vyber)-1 if akost_vyber == "+ Iná akosť (zadať manuálne)" else 0
     vybrany_polo_str = st.selectbox("Výber polotovaru (zoznam)", zoznam_na_vyber, index=idx_start, key="polo_inteligent")
 
+# Spracovanie ceny materiálu a manuálneho vstupu
 cena_polotovaru = 0.0
 if vybrany_polo_str == "+ Pridať nový/iný polotovar":
     c_n1, c_n2, c_n3, c_n4, c_n5, c_n6 = st.columns(6)
@@ -142,10 +144,7 @@ else:
 dlzka_pre_vypocet = l if tvar_item == "KR" else d
 cena_mat_kus = (dlzka_pre_vypocet / 1000) * cena_polotovaru
 
-with col_m4: st.metric(label="Cena za bm", value=f"{cena_polotovaru:.2f} €")
-with col_m5: st.metric(label="Mat. / kus", value=f"{cena_mat_kus:.3f} €")
-
-# --- 7. KLASIFIKÁCIA MECASYS (PONECHANÁ KOMPLETNE) ---
+# --- 7. KLASIFIKÁCIA MECASYS ---
 if akost_vyber == "+ Iná akosť (zadať manuálne)":
     relevantna_akost = nova_akost.upper().replace(" ", "").strip()
 else:
@@ -218,19 +217,21 @@ else:
 plocha_prierez_dm2 = povrch_celkovy_mm2 / 10000 
 hmotnost_celkom = hmotnost_kusu * pocet_kusov
 
-# --- NOVÁ SEKCIÁ: VÝBER KOOPERÁCIE ---
+# --- NOVÝ KOMBINOVANÝ RIADOK: KOOPERÁCIA A FINÁLNE CENY ---
 st.write("---")
-col_k1, col_k2, col_k3 = st.columns([1, 2, 2])
-with col_k1:
-    je_kooperacia = st.checkbox("Pridať kooperáciu?", value=False)
+# Rozdelenie na 7 stĺpcov pre prehľadnosť v jednom riadku
+rk1, rk2, rk3, rk4, rk5, rk6, rk7 = st.columns([0.8, 1.5, 1.5, 1.2, 1.2, 1.2, 1.5])
+
+with rk1:
+    je_kooperacia = st.checkbox("Koop?", value=False)
 
 cena_kooperacia = 0.0
 if je_kooperacia:
-    with col_k2:
-        vybrany_druh = st.selectbox("Druh koop.", sorted(df_koop['druh'].unique()))
-    with col_k3:
+    with rk2:
+        vybrany_druh = st.selectbox("Druh koop.", sorted(df_koop['druh'].unique()), key="druh_k")
+    with rk3:
         mats_koop = sorted(df_koop[df_koop['druh'] == vybrany_druh]['material'].unique())
-        vybrany_mat_koop = st.selectbox("Materiál koop.", mats_koop)
+        vybrany_mat_koop = st.selectbox("Mat. koop.", mats_koop, key="mat_k")
     
     riadok_koop = df_koop[(df_koop['druh'] == vybrany_druh) & (df_koop['material'] == vybrany_mat_koop)].iloc[0]
     tarifa = float(riadok_koop['tarifa'])
@@ -239,20 +240,25 @@ if je_kooperacia:
 
     vyp_cena = tarifa * (hmotnost_kusu if jednotka == "kg" else plocha_prierez_dm2 if jednotka == "dm2" else 1)
     cena_kooperacia = max(vyp_cena, min_obj / pocet_kusov)
+else:
+    with rk2: st.text_input("Druh koop.", "-", disabled=True)
+    with rk3: st.text_input("Mat. koop.", "-", disabled=True)
 
 vstupne_naklady = cena_mat_kus + cena_kooperacia
 
-# --- FINÁLNE ZOBRAZENIE (UPRAVENÉ PODĽA POŽIADAVKY) ---
+# Zobrazenie cien a nákladov v metrikách
+with rk4: st.metric("Cena/bm", f"{cena_polotovaru:.2f} €")
+with rk5: st.metric("Mat./kus", f"{cena_mat_kus:.3f} €")
+with rk6: st.metric("Koop./kus", f"{cena_kooperacia:.3f} €")
+with rk7: st.metric("VSTUPNÉ NÁKLADY", f"{vstupne_naklady:.3f} €", delta=f"{hmotnost_kusu:.2f} kg", delta_color="off")
+
+# --- SPODNÝ INFORMAČNÝ PANEL (GEOMETRIA) ---
 st.markdown(
     f"""
-    <div style="background-color: #f9f9f9; padding: 15px; border-radius: 10px; border: 1px solid #ddd;">
+    <div style="background-color: #f1f3f6; padding: 10px; border-radius: 5px; font-size: 0.85em; color: #555;">
     <strong>Subcategory:</strong> {subcategory} | <strong>Hustota:</strong> {hustota:.0f} kg/m³ | 
-    <strong>Plocha prierezu:</strong> {plocha_prierezu:.2f} mm² | <strong>Hmotnosť 1ks:</strong> {hmotnost_kusu:.3f} kg | 
+    <strong>Plocha prierezu:</strong> {plocha_prierezu:.2f} mm² | <strong>Hmotnosť:</strong> {hmotnost_kusu:.3f} kg | 
     <strong>Povrch:</strong> {plocha_prierez_dm2:.3f} dm²
-    <hr style="margin: 10px 0;">
-    <strong>Mat./kus:</strong> {cena_mat_kus:.3f} € | 
-    <strong>Kooperácia:</strong> {cena_kooperacia:.3f} € | 
-    <strong>VSTUPNÉ NÁKLADY SPOLU:</strong> <span style="font-size: 1.2em; color: #ff4b4b;">{vstupne_naklady:.3f} €/ks</span>
     </div>
     """, unsafe_allow_html=True
 )
