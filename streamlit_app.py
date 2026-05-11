@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 import datetime
+import re
 
 # --- 1. NASTAVENIA ---
 st.set_page_config(layout="wide", page_title="MEC Calculation")
@@ -16,12 +17,12 @@ with col_title:
 
 st.divider()
 
-# --- NAČÍTANIE DÁT (Zákazníci aj Materiály musia byť na začiatku) ---
+# --- NAČÍTANIE DÁT ---
 # Zákazníci
 sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSuHQWbpryWNerWr8aKKheHbzTPhXI6lS7YH1sL5zwFIIzLfpTZz47acY_ua2e_fVqEcfxMBe5wnjue/pub?gid=0&single=true&output=csv"
 df = pd.read_csv(sheet_url)
 
-# Materiály (TOTO CHÝBALO NA ZAČIATKU)
+# Materiály
 material_sheet_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQf4EiqZt1grkazJgfYWVhG0M8FGLNCjaGk6dcXhO3r04JQuZ9Qxv1jelDo3c8hBLy7Ny5C1pZqvbfS/pub?output=csv"
 df_mat = pd.read_csv(material_sheet_url)
 
@@ -91,16 +92,13 @@ else:
 
 st.divider()
 
-# --- 6. RIADOK: MATERIÁL, AKOSŤ A INTELIGENTNÝ POLOTOVAR (LOGIKA PRE INÚ AKOSŤ) ---
-# --- 6. RIADOK: MATERIÁL A POLOTOVAR (S CENAMI V JEDNOM RIADKU) ---
-WEB_APP_MAT_URL = "https://script.google.com/macros/s/AKfycbzyZxjTplhk010oq7ozvovAGx5lRx72PjqUvoJUrNazx_jRfq7lqfQgbeHYG9O-NCcX/exec"
+# --- 6. RIADOK: MATERIÁL A POLOTOVAR ---
 df_mat.columns = [c.lower().strip() for c in df_mat.columns]
 
 def get_sorted_dims(a, b, c):
     try: return sorted([float(a), float(b), float(c)], reverse=True)
     except: return [0.0, 0.0, 0.0]
 
-# TU JE ZMENA: Rozdelenie riadku na 5 stĺpcov
 col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns([2, 2, 3, 1.2, 1.2])
 
 with col_m1:
@@ -116,36 +114,46 @@ vhodne_moznosti = []
 if akost_vyber == "+ Iná akosť (zadať manuálne)":
     zoznam_na_vyber = ["+ Pridať nový/iný polotovar"]
 else:
+    # 1. Základný filter podľa materiálu a akosti
     df_relevant = df_mat[(df_mat['material'] == material_vyber) & (df_mat['akost'] == akost_vyber)].copy()
+    
+    # 2. DODATOČNÝ FILTER PODĽA TVARU (UPRAVENÉ)
+    if tvar_item == "KR":
+        # Ak je komponent KR, filtrujeme len rotačné polotovary
+        df_relevant = df_relevant[df_relevant['názov'].isin(['KR', '6HR', 'TR'])]
+    else:
+        # Ak je komponent STV, vylúčime rotačné polotovary
+        df_relevant = df_relevant[~df_relevant['názov'].isin(['KR', '6HR', 'TR'])]
+
     if not df_relevant.empty:
         df_relevant['sort_key'] = df_relevant.apply(lambda r: get_sorted_dims(r['rozmer1'], r['rozmer2'], r['rozmer3']), axis=1)
         df_relevant = df_relevant.sort_values(by='sort_key')
-    for idx, r in df_relevant.iterrows():
-        label = f"{r['názov']} | {r['rozmer1']}x{r['rozmer2']}x{r['rozmer3']} | Cena: {r['cena']}€/bm"
-        vhodne_moznosti.append({"label": label, "cena": float(r['cena'])})
+        for idx, r in df_relevant.iterrows():
+            label = f"{r['názov']} | {r['rozmer1']}x{r['rozmer2']}x{r['rozmer3']} | Cena: {r['cena']}€/bm"
+            vhodne_moznosti.append({"label": label, "cena": float(r['cena'])})
+    
     zoznam_na_vyber = [item['label'] for item in vhodne_moznosti] + ["+ Pridať nový/iný polotovar"]
 
 with col_m3:
     idx_start = len(zoznam_na_vyber)-1 if akost_vyber == "+ Iná akosť (zadať manuálne)" else 0
     vybrany_polo_str = st.selectbox("Výber polotovaru (zoznam)", zoznam_na_vyber, index=idx_start, key="polo_inteligent")
 
-# --- LOGIKA PRIRADENIA CENY ---
+# Logika priradenia ceny
 cena_polotovaru = 0.0
 if vybrany_polo_str == "+ Pridať nový/iný polotovar":
     st.warning("ℹ️ Zadajte parametre pre nový polotovar nižšie")
-    c_n1, c_n2, c_n3, c_n4, c_n5, c_n6 = st.columns(6)
+    c_n1, c_n2, c_n3 = st.columns(3)
     with c_n1:
         povodna = "" if akost_vyber == "+ Iná akosť (zadať manuálne)" else akost_vyber
         nova_akost = st.text_input("Názov akosti", value=povodna)
     with c_n2: nova_cena = st.number_input("Cena (€/bm)", min_value=0.0, format="%.2f")
-    # ... r1, r2, r3 ostanú ako si ich mala ...
     cena_polotovaru = nova_cena
 else:
     vybrany_objekt = next((item for item in vhodne_moznosti if item['label'] == vybrany_polo_str), None)
     if vybrany_objekt: 
         cena_polotovaru = vybrany_objekt['cena']
 
-# --- VÝPOČET A ZOBRAZENIE CIEN VEDĽA VÝBERU ---
+# Výpočet cien
 dlzka_pre_vypocet = l if tvar_item == "KR" else v
 cena_mat_kus = (dlzka_pre_vypocet / 1000) * cena_polotovaru
 
@@ -154,11 +162,9 @@ with col_m4:
 with col_m5:
     st.metric(label="Mat. / kus", value=f"{cena_mat_kus:.3f} €")
 
-# --- 7. SEKCIU: INTERNÁ KLASIFIKÁCIA MECASYS (SUBCATEGORY A HUSTOTA) ---
-# --- 7. SEKCIU: INTERNÁ KLASIFIKÁCIA MECASYS (SUBCATEGORY A HUSTOTA) ---
-import re
+st.divider()
 
-# 1. PRÍPRAVA VSTUPU
+# --- 7. SEKCIU: INTERNÁ KLASIFIKÁCIA MECASYS (SUBCATEGORY A HUSTOTA) ---
 if akost_vyber == "+ Iná akosť (zadať manuálne)":
     relevantna_akost = nova_akost.upper().replace(" ", "").strip()
 else:
@@ -167,44 +173,34 @@ else:
 def get_mecasys_logic(cat, akost_str):
     sub = "OSTATNÉ"
     rho = 0.0
+    if not akost_str: return sub, rho
 
-    if not akost_str:
-        return sub, rho
-
-    # Extrakcia DIN čísla (WNr.) - zachytí X.XXXX aj X.XXX
     match = re.search(r"\d\.\d{2,4}", akost_str)
     wnr_val = round(float(match.group()), 4) if match else 0.0
 
-    # --- CATEGORY: OCEĽ ---
     if cat == "OCEĽ":
-        rho = 7900.0  # Pevná hustota pre všetky ocele (aj neznáme)
-        # Výnimky (najvyššia priorita)
+        rho = 7900.0
         if any(x in akost_str for x in ["1.3505", "1.35"]): sub = "TOOL"
         elif any(x in akost_str for x in ["1.0619", "1.07", "1.11", "1.12"]): sub = "UNALL"
         elif "1.39" in akost_str: sub = "ALLOYED"
         elif "1.29" in akost_str: sub = "TOOL"
-        # Rozsahy
         elif 1.0000 <= wnr_val <= 1.1499: sub = "UNALL"
         elif 1.1500 <= wnr_val <= 1.6499: sub = "LOWAL"
         elif 1.6500 <= wnr_val <= 1.8999: sub = "ALLOYED"
         elif (1.2000 <= wnr_val <= 1.3299) or (1.3500 <= wnr_val <= 1.3599): sub = "TOOL"
         elif 1.3300 <= wnr_val <= 1.3899: sub = "HSS"
 
-    # --- CATEGORY: NEREZ ---
     elif cat == "NEREZ":
-        rho = 8000.0  # Pevná hustota pre všetky nereze (aj neznáme)
-        # Výnimky
+        rho = 8000.0
         if any(x in akost_str for x in ["1.47", "1.48"]): sub = "STAIN-SPEC"
         elif any(x in akost_str for x in ["1.4308", "1.4408"]): sub = "AUST"
         elif "1.4462" in akost_str: sub = "DUPX"
-        # Rozsahy
         elif 1.4300 <= wnr_val <= 1.4599: sub = "AUST"
         elif "1.41" in akost_str: sub = "MART"
         elif "1.44" in akost_str: sub = "DUPX"
         elif "1.40" in akost_str: sub = "FERR"
         elif 1.4600 <= wnr_val <= 1.4999: sub = "STAIN-SPEC"
 
-    # --- CATEGORY: FAREBNÉ KOVY ---
     elif cat == "FAREBNÉ KOVY":
         if 2.0000 <= wnr_val <= 2.0199: sub, rho = "CU", 9000.0
         elif 2.0200 <= wnr_val <= 2.0899: sub, rho = "BRASS", 9000.0
@@ -213,7 +209,6 @@ def get_mecasys_logic(cat, akost_str):
         elif "3.7" in akost_str: sub, rho = "TI", 4500.0
         elif "2.4" in akost_str: sub, rho = "NI-SPEC", 8500.0
 
-    # --- CATEGORY: PLAST ---
     elif cat == "PLAST":
         if "POM" in akost_str: sub, rho = "POM", 1500.0
         elif "PE" in akost_str or "HDPE" in akost_str: sub, rho = "PE", 1000.0
@@ -224,7 +219,6 @@ def get_mecasys_logic(cat, akost_str):
         elif "PTFE" in akost_str or "TEFLON" in akost_str: sub, rho = "PTFE", 3000.0
         elif "PC" in akost_str: sub, rho = "PC", 1200.0
 
-    # --- CATEGORY: LIATINA ---
     elif cat == "LIATINA":
         if "0.60" in akost_str: sub, rho = "CAST-GG", 7150.0
         elif "0.70" in akost_str: sub, rho = "CAST-GGG", 7250.0
@@ -232,17 +226,11 @@ def get_mecasys_logic(cat, akost_str):
 
     return sub, rho
 
-# 2. VÝKONNÁ ČASŤ
 subcategory, hustota_auto = get_mecasys_logic(material_vyber, relevantna_akost)
 
-# 3. KONTROLA A MANUÁLNY VSTUP
 hustota = hustota_auto
 if hustota_auto == 0.0:
     st.error(f"❌ Hustota pre akosť '{relevantna_akost}' nebola rozpoznaná.")
     hustota = st.number_input("Zadajte hustotu manuálne (kg/m³)", min_value=0.0, key="manual_rho")
-else:
-    # Ak je hustota určená (aj pre neznámu Oceľ/Nerez), len ju ticho nastavíme
-    pass
 
-# 4. ZOBRAZENIE (pre tvoju kontrolu)
-st.write(f"**Subcategory:** {subcategory} | **Hustota:** {hustota} kg/m³")
+st.write(f"**Subcategory:** `{subcategory}` | **Hustota:** `{hustota} kg/m³`")
