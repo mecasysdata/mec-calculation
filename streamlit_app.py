@@ -108,20 +108,25 @@ with col_m1:
 
 with col_m2:
     filtr_akosti = df_mat[df_mat['material'] == material_vyber]
-    zoznam_akosti = sorted(filtr_akosti['akost'].unique()) + ["+ Iná akosť (zadať manuálne)"]
+    zoznam_akosti = sorted(filtr_akosti['akost'].unique().astype(str)) + ["+ Iná akosť (zadať manuálne)"]
     akost_vyber = st.selectbox("Akosť", zoznam_akosti, key="akost_select")
 
 vhodne_moznosti = []
 if akost_vyber == "+ Iná akosť (zadať manuálne)":
     zoznam_na_vyber = ["+ Pridať nový/iný polotovar"]
 else:
-    df_relevant = df_mat[(df_mat['material'] == material_vyber) & (df_mat['akost'] == akost_vyber)].copy()
+    # Prevod na string pre istotu zhody
+    df_relevant = df_mat[(df_mat['material'] == material_vyber) & (df_mat['akost'].astype(str) == akost_vyber)].copy()
     
-    # --- PRIDANÝ FILTER PODĽA TVARU ---
+    # --- OPRAVENÝ FILTER PODĽA TVARU ---
     if tvar_item == "KR":
-        df_relevant = df_relevant[df_relevant['názov'].isin(['KR', '6HR', 'TR'])]
+        # Hľadá KR alebo 6HR alebo TR kdekoľvek v názve
+        mask = df_relevant['názov'].str.contains('KR|6HR|TR', case=False, na=False)
+        df_relevant = df_relevant[mask]
     else:
-        df_relevant = df_relevant[~df_relevant['názov'].isin(['KR', '6HR', 'TR'])]
+        # Všetko ostatné pre STV
+        mask = df_relevant['názov'].str.contains('KR|6HR|TR', case=False, na=False)
+        df_relevant = df_relevant[~mask]
 
     if not df_relevant.empty:
         df_relevant['sort_key'] = df_relevant.apply(lambda r: get_sorted_dims(r['rozmer1'], r['rozmer2'], r['rozmer3']), axis=1)
