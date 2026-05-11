@@ -155,86 +155,77 @@ with col_m5:
     st.metric(label="Mat. / kus", value=f"{cena_mat_kus:.3f} €")
 
 # --- 7. SEKCIU: INTERNÁ KLASIFIKÁCIA MECASYS (SUBCATEGORY A HUSTOTA) ---
+# --- 7. SEKCIU: INTERNÁ KLASIFIKÁCIA MECASYS (SUBCATEGORY A HUSTOTA) ---
 
 import re
 
 # 1. PRÍPRAVA VSTUPNEJ AKOSTI (Čistenie a ošetrenie)
-# Zisťujeme, či užívateľ vybral akosť zo zoznamu alebo zadal vlastnú
 if akost_vyber == "+ Iná akosť (zadať manuálne)":
-    # Prevedieme na veľké písmená, odstránime všetky medzery a biele znaky
+    # Použijeme manuálne zadanú akosť, zbavenú medzier a na veľké písmená
     relevantna_akost = nova_akost.upper().replace(" ", "").strip()
 else:
     relevantna_akost = akost_vyber.upper().replace(" ", "").strip()
 
 def get_mecasys_logic(material_vstup, akost_str):
     """
-    Logika podľa dokumentov:
-    - SUBCATEGORY_revB.docx (Klasifikácia a výnimky)
-    - HUSTOTA_definicia.docx (Priradenie hustoty v kg/m3)
+    Vylepšená logika: Rieši preklepy, medzery a prioritné výnimky.
     """
     sub = "OSTATNÉ"
-    rho = 0.0  # Hustota v kg/m3
+    rho = 0.0 
     
     if not akost_str:
         return sub, rho
 
-    # Extrakcia čísla WNr (napr. z "1.2379" vytiahne 1.2379 pre porovnávanie rozsahov)
+    # A. EXTRAKCIA DIN ČÍSLA (WNr.)
+    # Hľadá vzor X.XXXX kdekoľvek v texte
     match = re.search(r"\d\.\d{4}", akost_str)
-    wnr_val = float(match.group()) if match else 0.0
+    wnr_val = round(float(match.group()), 4) if match else 0.0
 
-    # --- A. CATEGORY: OCEĽ ---
+    # B. LOGIKA PODĽA HLAVNEJ KATEGÓRIE (material_vyber)
+    
+    # --- 1. OCEĽ ---
     if material_vstup == "OCEĽ":
-        rho = 7900.0  # Fixná hustota pre všetky ocele
-        
-        # 1. Výnimky (majú prednosť)
-        if akost_str.startswith("1.3505") or akost_str.startswith("1.35"):
-            sub = "TOOL"
-        elif any(akost_str.startswith(x) for x in ["1.0619", "1.07", "1.11", "1.12"]):
-            sub = "UNALL"
-        elif akost_str.startswith("1.39"):
-            sub = "ALLOYED"
-        elif akost_str.startswith("1.29"):
-            sub = "TOOL"
-        # 2. Rozsahy DIN
+        rho = 7900.0
+        # Výnimky z tabuľky 3 (Majú prednosť pred rozsahom)
+        if "1.3505" in akost_str or "1.35" in akost_str: sub = "TOOL"
+        elif any(x in akost_str for x in ["1.0619", "1.07", "1.11", "1.12"]): sub = "UNALL"
+        elif "1.39" in akost_str: sub = "ALLOYED"
+        elif "1.29" in akost_str: sub = "TOOL"
+        # Štandardné rozsahy
         elif 1.0000 <= wnr_val <= 1.1499: sub = "UNALL"
         elif 1.1500 <= wnr_val <= 1.6499: sub = "LOWAL"
         elif 1.6500 <= wnr_val <= 1.8999: sub = "ALLOYED"
         elif (1.2000 <= wnr_val <= 1.3299) or (1.3500 <= wnr_val <= 1.3599): sub = "TOOL"
         elif 1.3300 <= wnr_val <= 1.3899: sub = "HSS"
 
-    # --- B. CATEGORY: NEREZ ---
+    # --- 2. NEREZ ---
     elif material_vstup == "NEREZ":
-        rho = 8000.0  # Fixná hustota pre všetky nereze
-        
-        # 1. Výnimky (majú prednosť)
-        if akost_str.startswith("1.47") or akost_str.startswith("1.48"):
-            sub = "STAIN-SPEC"
-        elif akost_str.startswith("1.4308") or akost_str.startswith("1.4408"):
-            sub = "AUST"
-        elif akost_str.startswith("1.4462"):
-            sub = "DUPX"
-        # 2. Rozsahy DIN
+        rho = 8000.0
+        # Výnimky (Žiaruvzdorné a odliatky)
+        if "1.47" in akost_str or "1.48" in akost_str: sub = "STAIN-SPEC"
+        elif "1.4308" in akost_str or "1.4408" in akost_str: sub = "AUST"
+        elif "1.4462" in akost_str: sub = "DUPX"
+        # Štandardné rozsahy
         elif 1.4300 <= wnr_val <= 1.4599: sub = "AUST"
-        elif akost_str.startswith("1.41"): sub = "MART"
-        elif akost_str.startswith("1.44"): sub = "DUPX"
-        elif akost_str.startswith("1.40"): sub = "FERR"
+        elif "1.41" in akost_str: sub = "MART"
+        elif "1.44" in akost_str: sub = "DUPX"
+        elif "1.40" in akost_str: sub = "FERR"
         elif 1.4600 <= wnr_val <= 1.4999: sub = "STAIN-SPEC"
 
-    # --- C. CATEGORY: FAREBNÉ KOVY ---
+    # --- 3. FAREBNÉ KOVY ---
     elif material_vstup == "FAREBNÉ KOVY":
-        # Subcategory a hustota podľa DIN rozsahov z HUSTOTA_definicia
         if 2.0000 <= wnr_val <= 2.0199: sub, rho = "CU", 9000.0
         elif 2.0200 <= wnr_val <= 2.0599: sub, rho = "BRASS", 9000.0
         elif 2.0900 <= wnr_val <= 2.1399: sub, rho = "BRONZE", 9000.0
         elif 3.0000 <= wnr_val <= 3.5999: sub, rho = "ALU", 2900.0
-        elif akost_str.startswith("3.7"): sub, rho = "TI", 4500.0
-        elif akost_str.startswith("2.4"): sub, rho = "NI-SPEC", 8500.0
+        elif "3.7" in akost_str: sub, rho = "TI", 4500.0
+        elif "2.4" in akost_str: sub, rho = "NI-SPEC", 8500.0
 
-    # --- D. CATEGORY: PLAST ---
+    # --- 4. PLAST ---
     elif material_vstup == "PLAST":
-        # Vyhľadávanie kľúčových slov v názve akosti
+        # Tu DIN čísla nie sú, hľadáme kľúčové slová
         if "POM" in akost_str: sub, rho = "POM", 1500.0
-        elif any(x in akost_str for x in ["PE", "HDPE"]): sub, rho = "PE", 1000.0
+        elif "PE" in akost_str or "HDPE" in akost_str: sub, rho = "PE", 1000.0
         elif "PA" in akost_str: sub, rho = "PA", 1200.0
         elif "PP" in akost_str: sub, rho = "PP", 1000.0
         elif "PEEK" in akost_str: sub, rho = "PEEK", 1400.0
@@ -243,20 +234,26 @@ def get_mecasys_logic(material_vstup, akost_str):
         elif "PVC" in akost_str: sub, rho = "PVC", 1700.0
         elif "PTFE" in akost_str or "TEFLON" in akost_str: sub, rho = "PTFE", 3000.0
         elif "PUR" in akost_str: sub, rho = "PUR", 2000.0
-        elif any(x in akost_str for x in ["RUBBER", "GUMA"]): sub, rho = "RUBBER", 1200.0
+        elif "GUMA" in akost_str or "RUBBER" in akost_str: sub, rho = "RUBBER", 1200.0
         else: sub, rho = "OSTATNÉ", 1400.0
 
-    # --- E. CATEGORY: LIATINA ---
+    # --- 5. LIATINA ---
     elif material_vstup == "LIATINA":
-        if akost_str.startswith("0.60"): sub, rho = "CAST-GG", 7150.0
-        elif akost_str.startswith("0.70"): sub, rho = "CAST-GGG", 7250.0
+        if "0.60" in akost_str: sub, rho = "CAST-GG", 7150.0
+        elif "0.70" in akost_str: sub, rho = "CAST-GGG", 7250.0
         elif 0.8000 <= wnr_val <= 0.9699: sub, rho = "CAST-TEMP", 7400.0
 
     return sub, rho
 
-# 2. FINÁLNE PRIRADENIE PREMENNÝCH
+# 2. FINÁLNE VOLANIE LOGIKY
 subcategory, hustota = get_mecasys_logic(material_vyber, relevantna_akost)
 
-# 3. KONTROLNÝ VÝPIS PRE PROGRAMÁTORA (Skrytý alebo v expaderi)
-# Tento výpis slúži len na overenie, že premenné sú správne naplnené
-st.write(f"DEBUG: Subcategory={subcategory}, Hustota={hustota} kg/m3")
+# 3. VÝPIS PRE OVERENIE (Zobrazí sa v aplikácii pod výbermi)
+st.write(f"---")
+c_debug1, c_debug2, c_debug3 = st.columns(3)
+with c_debug1:
+    st.write(f"**Identifikovaná akosť:** `{relevantna_akost}`")
+with c_debug2:
+    st.write(f"**Subcategory:** `{subcategory}`")
+with c_debug3:
+    st.write(f"**Hustota:** `{hustota} kg/m³`")
