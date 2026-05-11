@@ -256,9 +256,13 @@ else:
 # Celková hmotnosť za všetky kusy
 hmotnost_celkom = hmotnost_kusu * pocet_kusov
 
-# Zobrazenie výsledkov v Streamlite
-st.subheader("Výsledky výpočtu hmotnosti")
-c1, c2, c3 = st.columns(3)
-c1.metric("Plocha prierezu", f"{plocha_prierezu:.2f} mm²")
-c2.metric("Hmotnosť 1 kusu", f"{hmotnost_kusu:.3f} kg")
-c3.metric("Hmotnosť celkom", f"{hmotnost_celkom:.2f} kg")
+# --- ZOBRAZENIE V JEDNOM RIADKU (Lomka štýl) ---
+st.markdown(
+    f"""
+    **Subcategory:** {subcategory} | 
+    **Hustota:** {hustota:.0f} kg/m³ | 
+    **Plocha prierezu:** {plocha_prierezu:.2f} mm² | 
+    **Hmotnosť 1 kusu:** {hmotnost_kusu:.3f} kg | 
+    **Hmotnosť celkom:** {hmotnost_celkom:.2f} kg
+    """
+)
