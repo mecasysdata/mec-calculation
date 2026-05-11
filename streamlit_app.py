@@ -239,28 +239,44 @@ if hustota_auto == 0.0:
 
 import math
 
-# Výpočty geometrie
+# --- VÝPOČET GEOMETRIE, HMOTNOSTI A PLÔCH ---
 if tvar_item == "KR":
-    # Plocha kruhu: (pi * d^2) / 4
+    # 1. Plocha prierezu pre MODEL (v mm2)
     plocha_prierezu = (math.pi * (d**2)) / 4
-    # Objem * hustota / prevod na m3
+    
+    # 2. Celkový povrch pre KOOPERÁCIU (v mm2 -> následne prevod na dm2)
+    plocha_plasta = math.pi * d * l
+    povrch_celkovy_mm2 = (2 * plocha_prierezu) + plocha_plasta
+    
+    # 3. Hmotnosť
     hmotnost_kusu = (plocha_prierezu * l * hustota) / 1e9
 else:
-    # Plocha obdĺžnika: s * v
+    # 1. Plocha prierezu pre MODEL (v mm2: s * v)
     plocha_prierezu = s * v
-    # Objem (s*v*d) * hustota / prevod na m3
+    
+    # 2. Celkový povrch pre KOOPERÁCIU (v mm2: 2*(sv + sd + vd))
+    # d je dĺžka (D/P) podľa technológa
+    povrch_celkovy_mm2 = 2 * (s * v + s * d + v * d)
+    
+    # 3. Hmotnosť
     hmotnost_kusu = (s * v * d * hustota) / 1e9
 
-# Celková hmotnosť za všetky kusy
+# --- PREVOD PRE KOOPERÁCIU ---
+# Premennú pre kooperáciu nazveme presne tak, ako ju čaká tvoj starý kód, 
+# ale naplníme ju celkovým povrchom prepočítaným na dm2.
+plocha_prierez_dm2 = povrch_celkovy_mm2 / 10000 
+
 hmotnost_celkom = hmotnost_kusu * pocet_kusov
 
-# --- ZOBRAZENIE V JEDNOM RIADKU (Lomka štýl) ---
+# --- ZOBRAZENIE ---
 st.markdown(
     f"""
     **Subcategory:** {subcategory} | 
     **Hustota:** {hustota:.0f} kg/m³ | 
-    **Plocha prierezu:** {plocha_prierezu:.2f} mm² | 
-    **Hmotnosť 1 kusu:** {hmotnost_kusu:.3f} kg | 
-    **Hmotnosť celkom:** {hmotnost_celkom:.2f} kg
+    **Plocha prierezu (pre model):** {plocha_prierezu:.2f} mm² | 
+    **Povrch kusu (pre koop):** {plocha_prierez_dm2:.4f} dm² | 
+    **Hmotnosť 1ks:** {hmotnost_kusu:.3f} kg
     """
 )
+
+
