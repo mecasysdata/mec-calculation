@@ -91,7 +91,6 @@ else:
 
 st.divider()
 
-
 # --- 6. RIADOK: MATERIÁL, AKOSŤ A INTELIGENTNÝ POLOTOVAR (LOGIKA PRE INÚ AKOSŤ) ---
 WEB_APP_MAT_URL = "https://script.google.com/macros/s/AKfycbzyZxjTplhk010oq7ozvovAGx5lRx72PjqUvoJUrNazx_jRfq7lqfQgbeHYG9O-NCcX/exec"
 
@@ -109,15 +108,12 @@ with col_m1:
 
 with col_m2:
     filtr_akosti = df_mat[df_mat['material'] == material_vyber]
-    # PRIDANIE MOŽNOSTI "INÁ AKOSŤ"
     zoznam_akosti = sorted(filtr_akosti['akost'].unique()) + ["+ Iná akosť (zadať manuálne)"]
     akost_vyber = st.selectbox("Akosť", zoznam_akosti, key="akost_select")
 
-# --- FILTROVANIE A TVORBA ZOZNAMU POLOTOVAROV ---
 vhodne_moznosti = []
 
 if akost_vyber == "+ Iná akosť (zadať manuálne)":
-    # Ak užívateľ zadáva novú akosť, zoznam polotovarov bude mať len jednu voľbu
     zoznam_na_vyber = ["+ Pridať nový/iný polotovar"]
 else:
     df_relevant = df_mat[(df_mat['material'] == material_vyber) & (df_mat['akost'] == akost_vyber)].copy()
@@ -132,7 +128,6 @@ else:
     zoznam_na_vyber = [item['label'] for item in vhodne_moznosti] + ["+ Pridať nový/iný polotovar"]
 
 with col_m3:
-    # Ak zvolil inú akosť, automaticky nastavíme selectbox na pridávanie
     idx_start = len(zoznam_na_vyber)-1 if akost_vyber == "+ Iná akosť (zadať manuálne)" else 0
     vybrany_polo_str = st.selectbox("Výber polotovaru (zoznam)", zoznam_na_vyber, index=idx_start, key="polo_inteligent")
 
@@ -144,7 +139,6 @@ if vybrany_polo_str == "+ Pridať nový/iný polotovar":
     c_n1, c_n2, c_n3, c_n4, c_n5, c_n6 = st.columns(6)
     
     with c_n1:
-        # Ak hore vybral "Iná akosť", necháme mu tu prázdne pole na vpísanie novej
         povodna = "" if akost_vyber == "+ Iná akosť (zadať manuálne)" else akost_vyber
         nova_akost = st.text_input("Názov akosti", value=povodna)
     
@@ -183,4 +177,23 @@ else:
         cena_polotovaru = vybrany_objekt['cena']
         st.success(f"✅ Cena polotovaru: {cena_polotovaru} €/bm")
 
-# ... (zvyšok s kalkuláciou ostáva rovnaký) ...
+# --- DOPLNENÉ ATRIBÚTY: CENA ZA BM A CENA MAT. NA KUS ---
+dlzka_pre_vypocet = l if tvar_item == "KR" else v
+cena_mat_kus = (dlzka_pre_vypocet / 1000) * cena_polotovaru
+
+if cena_polotovaru > 0:
+    col_atrib1, col_atrib2 = st.columns(2)
+    with col_atrib1:
+        st.metric(label="Cena za bm", value=f"{cena_polotovaru:.2f} €/bm")
+    with col_atrib2:
+        st.metric(label="Cena mat. na kus", value=f"{cena_mat_kus:.4f} €")
+
+# --- FINÁLNA KALKULÁCIA ---
+st.divider()
+st.subheader("Ekonomika komponentu")
+
+if dlzka_pre_vypocet > 0 and cena_polotovaru > 0:
+    st.write(f"Základná cena materiálu pre 1 ks položky **{item}** je **{cena_mat_kus:.4f} €**.")
+    st.session_state['cena_mat_kus_final'] = cena_mat_kus
+else:
+    st.warning("⚠️ Skontrolujte rozmery komponentu a výber polotovaru.")
