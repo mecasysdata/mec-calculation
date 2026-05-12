@@ -191,6 +191,7 @@ def get_mecasys_logic(cat, akost_str):
         elif "PET" in akost_str: sub, rho = "PET", 1700.0
         elif "PTFE" in akost_str or "TEFLON" in akost_str: sub, rho = "PTFE", 3000.0
         elif "PC" in akost_str: sub, rho = "PC", 1200.0
+        elif "PMMA" in akost_str: sub, rho = "PMMA", 1200.0
     elif cat == "LIATINA":
         if "0.60" in akost_str: sub, rho = "CAST-GG", 7150.0
         elif "0.70" in akost_str: sub, rho = "CAST-GGG", 7250.0
