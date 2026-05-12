@@ -109,8 +109,7 @@ else:
         mask = df_relevant['názov'].str.contains('KR|6HR|TR', case=False, na=False)
         df_relevant = df_relevant[mask]
     else:
-        mask = df_relevant['názov'].str.contains('KR|6HR|TR', case=False, na=False)
-        df_relevant = df_relevant[~mask]
+        pass
 
     if not df_relevant.empty:
         df_relevant['sort_key'] = df_relevant.apply(lambda r: get_sorted_dims(r['rozmer1'], r['rozmer2'], r['rozmer3']), axis=1)
