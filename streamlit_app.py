@@ -183,15 +183,38 @@ def get_mecasys_logic(cat, akost_str):
         elif "3.7" in akost_str: sub, rho = "TI", 4500.0
         elif "2.4" in akost_str: sub, rho = "NI-SPEC", 8500.0
     elif cat == "PLAST":
-        if "POM" in akost_str: sub, rho = "POM", 1500.0
-        elif "PE" in akost_str or "HDPE" in akost_str: sub, rho = "PE", 1000.0
-        elif "PA" in akost_str: sub, rho = "PA", 1200.0
-        elif "PP" in akost_str: sub, rho = "PP", 1000.0
-        elif "PEEK" in akost_str: sub, rho = "PEEK", 1400.0
-        elif "PET" in akost_str: sub, rho = "PET", 1700.0
-        elif "PTFE" in akost_str or "TEFLON" in akost_str: sub, rho = "PTFE", 3000.0
-        elif "PC" in akost_str: sub, rho = "PC", 1200.0
-        elif "PMMA" in akost_str: sub, rho = "PMMA", 1200.0
+        # 1. Najšpecifickejšie (PEEK, PET-G, PMMA)
+        if "PEEK" in akost_str: 
+            sub, rho = "PEEK", 1400.0
+        elif "PET-G" in akost_str or "PETG" in akost_str:
+            sub, rho = "PET-G", 1270.0
+        elif "PMMA" in akost_str or "PLEXI" in akost_str or "AKRYLAT" in akost_str:
+            sub, rho = "PMMA", 1200.0
+            
+        # 2. Skupiny s viacerými názvami
+        elif "PC" in akost_str or "LEXAN" in akost_str:
+            sub, rho = "PC", 1200.0
+        elif "PUR" in akost_str or "EBABOARD" in akost_str or "EBABLOCK" in akost_str:
+            sub, rho = "PUR", 1200.0 # hustota podľa typu polyuretánu
+        elif "EPDM" in akost_str or "GUMA" in akost_str or "RUBBER" in akost_str:
+            sub, rho = "RUBBER", 1150.0
+        elif "PVC" in akost_str:
+            sub, rho = "PVC", 1400.0
+            
+        # 3. Štandardné plasty
+        elif "POM" in akost_str:
+            sub, rho = "POM", 1500.0
+        elif "PET" in akost_str: # PET zachytí zvyšné PET (nie PET-G)
+            sub, rho = "PET", 1700.0
+        elif "PA" in akost_str:
+            sub, rho = "PA", 1200.0
+        elif "PP" in akost_str:
+            sub, rho = "PP", 1000.0
+            
+        # 4. Posledný musí byť PE (kvôli PEEK)
+        elif "PE" in akost_str or "HDPE" in akost_str:
+            sub, rho = "PE", 1000.0
+  
     elif cat == "LIATINA":
         if "0.60" in akost_str: sub, rho = "CAST-GG", 7150.0
         elif "0.70" in akost_str: sub, rho = "CAST-GGG", 7250.0
