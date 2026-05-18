@@ -287,19 +287,34 @@ hustota = hustota_auto
 if hustota_auto == 0.0:
     hustota = st.number_input("Manuálna hustota (kg/m³)", min_value=0.0, key="manual_rho")
 
-# --- 8. VÝPOČET GEOMETRIE ---
+# --- 8. VÝPOČET GEOMETRIE A PRÍPRAVA PRE RF MODELY ---
+kr1_predikovany = 0.0   # Predikovaný výrobný čas (KR)
+kr2_predikovany = 0.0   # Predikovaná cena komponentu (KR)
+stv1_predikovany = 0.0  # Predikovaný výrobný čas (STV)
+stv2_predikovany = 0.0  # Predikovaná cena komponentu (STV)
+
 if tvar_item == "KR":
     plocha_prierezu = (math.pi * (d**2)) / 4
     povrch_celkovy_mm2 = (2 * plocha_prierezu) + (math.pi * d * l)
     hmotnost_kusu = (plocha_prierezu * l * hustota) / 1e9
+    
+    # 🔮 TU DNES ZAPOJÍŠ SVOJE RF MODELY PRE KR:
+    # kr1_predikovany = float(model_rf_kr_cas.predict(...)[0])
+    # kr2_predikovany = float(model_rf_kr_cena.predict(...)[0])
+    
+    # Pre testovacie účely tam môžeš hodiť fixné čísla, napr: kr1_predikovany = 12.5
+
 else:
     plocha_prierezu = s * v
     povrch_celkovy_mm2 = 2 * (s * v + s * d + v * d)
     hmotnost_kusu = (s * v * d * hustota) / 1e9
+    
+    # 🔮 TU DNES ZAPOJÍŠ SVOJE RF MODELY PRE STV:
+    # stv1_predikovany = float(model_rf_stv_cas.predict(...)[0])
+    # stv2_predikovany = float(model_rf_stv_cena.predict(...)[0])
 
 plocha_prierez_dm2 = povrch_celkovy_mm2 / 10000 
 hmotnost_celkom = hmotnost_kusu * pocet_kusov
-
 # --- 9. KOOPERÁCIA A FINÁLNE CENY (AKTUALIZOVANÁ LOGIKA FILTROVANIA) ---
 st.write("---")
 rk1, rk2, rk3, rk4, rk5, rk6, rk7 = st.columns([0.8, 1.5, 1.5, 1.2, 1.2, 1.2, 1.5])
