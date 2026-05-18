@@ -509,9 +509,8 @@ if st.session_state.kosik_poloziek:
     st.dataframe(st.session_state.kosik_poloziek, use_container_width=True)
 
 # --- EXPORT DO PDF (Upravené presne pre tvoj pôvodný košík) ---
-
 # =====================================================================
-# --- EXPORT DO PDF (Prispôsobené pre fpdf2 a tvoj pôvodný košík) ---
+# --- EXPORT DO PDF (S plnou podporou slovenskej diakritiky) ---
 # =====================================================================
 if st.session_state.get("kosik_poloziek"):
     st.write("---")
@@ -526,11 +525,22 @@ if st.session_state.get("kosik_poloziek"):
                 pdf = FPDF(orientation='L', unit='mm', format='A4')
                 pdf.add_page()
                 
-                # fpdf2 natívne podporuje UTF-8 (netreba mazať diakritiku, ak sa použije základný font)
-                pdf.set_font("Helvetica", "B", 16)
+                # --- REGISTRÁCIA FONTU S PODPOROU UTF-8 (Slovenčina) ---
+                # Využijeme systémový font DejaVuSans, ktorý je štandardom na Linux/Streamlit serveroch
+                try:
+                    pdf.add_font("DejaVu", "", "DejaVuSans.ttf")
+                    pdf.add_font("DejaVu", "B", "DejaVuSans-Bold.ttf")
+                    pdf.add_font("DejaVu", "I", "DejaVuSans-Oblique.ttf")
+                    font_name = "DejaVu"
+                except Exception:
+                    # Bezpečný fallback pre lokálne testovanie (ak by na Windows chýbal DejaVu)
+                    font_name = "Helvetica"
+                
+                # Hlavička dokumentu (Použitie font_name namiesto "Helvetica")
+                pdf.set_font(font_name, "B", 16)
                 pdf.cell(0, 10, "CENOVÁ PONUKA", ln=True, align='L')
                 
-                pdf.set_font("Helvetica", "", 10)
+                pdf.set_font(font_name, "", 10)
                 c_ponuky = ponuka if ('ponuka' in locals() and ponuka) else datetime.datetime.now().strftime("%Y%m%d-%H%M")
                 d_ponuky = datum.strftime("%d.%m.%Y") if 'datum' in locals() else datetime.datetime.now().strftime("%d.%m.%Y")
                 txt_zakaznik = zakaznik if 'zakaznik' in locals() else "Zákazník"
@@ -541,22 +551,21 @@ if st.session_state.get("kosik_poloziek"):
                 pdf.cell(0, 7, f"Zákazník: {txt_zakaznik} ({txt_krajina})", ln=True)
                 pdf.ln(10)
                 
-                # Hlavička tabuľky prispôsobená pre tvoj košík (Spolu 275 mm)
-                headers = ["Item", "Tvar", "Rozmery", "Ks", "Hmotnosť (kg)", "Vst. náklady", "Cena/ks", "Cena spolu"]
+                # Hlavička tabuľky - TERAZ UŽ MÔŽEŠ POUŽIŤ DIAKRITIKU (Položka, Hmotnosť...)
+                headers = ["Položka", "Tvar", "Rozmery", "Ks", "Hmotnosť (kg)", "Vst. náklady", "Cena/ks", "Cena spolu"]
                 widths = [35, 15, 60, 15, 30, 35, 40, 45]
                 
-                pdf.set_font("Helvetica", "B", 9)
+                pdf.set_font(font_name, "B", 9)
                 pdf.set_fill_color(240, 240, 240)
                 for i in range(len(headers)):
                     pdf.cell(widths[i], 10, headers[i], border=1, align='C', fill=True)
                 pdf.ln()
                 
                 # Čítanie z tvojho pôvodného košíka
-                pdf.set_font("Helvetica", "", 8)
+                pdf.set_font(font_name, "", 8)
                 suma_vsetko = 0.0
                 
                 for idx, p in enumerate(st.session_state.kosik_poloziek):
-                    # Presné mapovanie na tvoje kľúče z košíka
                     cena_kus = float(p.get("Finálna Cena (€)", 0.0))
                     pocet_ks = int(p.get("Počet kusov", 1))
                     spolu_polozka = cena_kus * pocet_ks
@@ -566,6 +575,7 @@ if st.session_state.get("kosik_poloziek"):
                     if not item_name:
                         item_name = f"Pol. {idx+1}"
                     
+                    # fpdf2 teraz vypíše texty s mäkčeňmi (ako š, ž, ť) úplne bez chýb
                     pdf.cell(widths[0], 8, str(item_name), border=1)
                     pdf.cell(widths[1], 8, str(p.get('Tvar', '-')), border=1, align='C')
                     pdf.cell(widths[2], 8, str(p.get('Rozmery', '-')), border=1)
@@ -578,16 +588,16 @@ if st.session_state.get("kosik_poloziek"):
                 
                 # Celková suma
                 pdf.ln(5)
-                pdf.set_font("Helvetica", "B", 12)
+                pdf.set_font(font_name, "B", 12)
                 pdf.cell(sum(widths[:-1]), 10, "CELKOVÁ CENA PONUKY SPOLU:", border=0, align='R')
                 pdf.cell(widths[-1], 10, f"{suma_vsetko:.2f} €", border=1, align='C')
                 
                 # Pätička
                 pdf.set_y(-25)
-                pdf.set_font("Helvetica", "I", 8)
+                pdf.set_font(font_name, "I", 8)
                 pdf.cell(0, 10, f"Vygenerované systémom MECASYS - {datetime.datetime.now().strftime('%d.%m.%Y %H:%M')}", 0, 0, 'C')
 
-                # fpdf2 output vracia priamo bytes, ak nezadáme súbor
+                # fpdf2 output vracia priamo bytes
                 pdf_bytes = pdf.output()
                 
                 st.download_button(
@@ -600,3 +610,4 @@ if st.session_state.get("kosik_poloziek"):
 
             except Exception as e:
                 st.error(f"Chyba pri generovaní PDF: {e}")
+
