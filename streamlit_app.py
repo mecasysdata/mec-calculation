@@ -455,8 +455,7 @@ if st.session_state.kosik:
         st.metric("CELKOVÁ CENA PONUKY", f"{celkova_suma:.2f} €")
             
     st.write("") # Drobné odsadene pre tlačidlá
-    st.write("### ⚙️ Akcie s cenovou ponukou")
-    
+       
     # Rozdelenie na 3 stĺpce vedľa seba
     col_pdf, col_save, col_reset = st.columns(3)
     
@@ -599,7 +598,7 @@ if st.session_state.kosik:
                         odpoved = requests.post(URL_TVOJHO_APPS_SCRIPTU, json=riadky_na_zapis)
                         
                         if "success" in odpoved.text.lower():
-                            st.success(f"🎉 Ponuka '{ponuka}' bola úspešne zapísaná do záložky Hárok1! Teraz môžete kliknúť na 'Založiť novú ponuku'.")
+                            st.success(f"Ponuka '{ponuka}' bola úspešne zapísaná do záložky Hárok1! Teraz môžete kliknúť na 'Založiť novú ponuku'.")
                         else:
                             st.error(f"❌ Chyba skriptu tabuľky: {odpoved.text}")
                             
