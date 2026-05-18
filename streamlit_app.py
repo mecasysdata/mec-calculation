@@ -1,23 +1,36 @@
 import os
-os.system("pip install reportlab==4.1.0")
+import sys
+import subprocess
 
-import streamlit as st
-import pandas as pd
-# ... tvoje ostatné importy vrátane reportlab už prebehnú úspešne
+# =====================================================================
+# 1. RUNTIME INJECTION (Garantovaná izolácia prostredia)
+# =====================================================================
+try:
+    from reportlab.lib.pagesizes import landscape, A4
+except ModuleNotFoundError:
+    python_executable = sys.executable
+    subprocess.check_call([python_executable, "-m", "pip", "install", "--upgrade", "reportlab==4.1.0"])
+    import importlib
+    importlib.invalidate_caches()
+
+# =====================================================================
+# 2. CORE & THIRD-PARTY IMPORTS (Bez duplicít)
+# =====================================================================
 import streamlit as st
 import pandas as pd
 import requests
 import datetime
 import re
 import math
+import io
 
+# Importy ReportLab po úspešnej verifikácii prostredia
 from reportlab.lib.pagesizes import landscape, A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-import io
 
 # --- 1. NASTAVENIA ---
 st.set_page_config(layout="wide", page_title="MEC Calculation")
