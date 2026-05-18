@@ -215,4 +215,5 @@ def get_mecasys_logic(cat, akost_str):
     sub = "OSTATNÉ"
     rho = 0.0
     if not akost_str: return sub, rho
-    match = re.
+    match = re.search(r"\d\.\d{2,4}", akost_str)  # <--- TENTO RIADOK MUSÍ BYŤ V CELKU
+    wnr_val = round(float(match.group()), 4) if match else 0.0
