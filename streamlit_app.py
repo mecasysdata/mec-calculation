@@ -413,7 +413,7 @@ with st.container():
         
     with col_inf2:
         # Iba jeden čistý checkbox na potvrdenie modelu
-        model_ok = st.checkbox("☑️ Potvrdzujem správnosť hodnôt z AI modelu", value=True, key="potvrdenie_modelu")
+        model_ok = st.checkbox("Potvrdzujem správnosť hodnôt z AI modelu", value=True, key="potvrdenie_modelu")
         
         col_cas, col_cena = st.columns(2)
         
