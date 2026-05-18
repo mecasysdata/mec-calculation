@@ -439,6 +439,7 @@ if st.session_state.cas_potvrdeny and not st.session_state.cena_potvrdena:
 elif st.session_state.cena_potvrdena:
     st.success(f"💰 Cena úspešne schválená na: **{st.session_state.schvalena_cena:.2f} €**. Položku môžete vložiť do košíka.")
 
+
 # --- 11. ZOBRAZENIE KOŠÍKA (Na spodku aplikácie) ---
 if st.session_state.kosik:
     st.write("---")
@@ -449,9 +450,85 @@ if st.session_state.kosik:
     
     celkova_suma = df_kosik["Celkom za položku (€)"].sum()
     
-    col_sum1, col_sum2 = st.columns([6, 2])
+    col_sum1, col_sum2 = st.columns([5, 3])
     with col_sum2:
         st.metric("CELKOVÁ CENA PONUKY", f"{celkova_suma:.2f} €")
+        
+    col_btn1, col_btn2 = st.columns(2)
+    with col_btn1:
         if st.button("🗑️ Vymazať celý košík", type="secondary", use_container_width=True):
             st.session_state.kosik = []
             st.rerun()
+            
+    with col_btn2:
+        if st.button("💾 Uložiť a Uzatvoriť ponuku", type="primary", use_container_width=True):
+            if not ponuka.strip():
+                st.error("❌ Prosím, zadaj 'Označenie CP' pred uložením ponuky!")
+            elif not zakaznik.strip():
+                st.error("❌ Prosím, zadaj alebo vyber 'Názov Zákazníka'!")
+            else:
+                riadky_na_zapis = []
+                
+                for p in st.session_state.kosik:
+                    # Rozbor textu rozmerov, aby sme získali čisté čísla do samostatných stĺpcov
+                    try:
+                        diely_rozmerov = [float(x.strip()) for x in p["Rozmery"].split("x")]
+                    except:
+                        diely_rozmerov = [0.0, 0.0, 0.0]
+                    
+                    # Detekcia tvaru podla poctu rozmerov v retazci
+                    if len(diely_rozmerov) == 2:
+                        tvar_zapis = "KR"
+                        val_d = diely_rozmerov[0]
+                        val_l = diely_rozmerov[1]
+                        val_v = 0.0
+                    else:
+                        tvar_zapis = "STV"
+                        val_d = diely_rozmerov[0] if len(diely_rozmerov) > 0 else 0.0
+                        val_l = diely_rozmerov[1] if len(diely_rozmerov) > 1 else 0.0
+                        val_v = diely_rozmerov[2] if len(diely_rozmerov) > 2 else 0.0
+
+                    # Mapovanie riadku presne na strukturu stlpcov A az W pre tvoj novy Apps Script
+                    novy_riadok_sheet = {
+                        "Dátum CP": datum.strftime("%d.%m.%Y") if hasattr(datum, 'strftime') else str(datum),
+                        "Číslo CP": ponuka,
+                        "Zákazník": zakaznik,
+                        "Krajina": krajina_hodnota,
+                        "Lojalita": lojalita,
+                        "ITEM": p["ITEM"],
+                        "Tvar": tvar_zapis,
+                        "Materiál": p["Materiál"],
+                        "Akosť": p["Akosť"],
+                        "Rozmer D / DP": val_d,
+                        "Rozmer L / S": val_l,
+                        "Rozmer V": val_v,
+                        "Hustota": hustota,  # Preberá hodnotu z aktuálneho stavu výpočtu
+                        "Hmotnosť kusu (kg)": p["Model Cena (€/ks)"] if p["Počet kusov"] == 0 else round((p["Celkom za položku (€)"] / p["Počet kusov"]) / (vstupne_naklady if vstupne_naklady > 0 else 1) * hmotnost_kusu, 3), # bezpečný dopočet hmotnosti priradenej položky
+                        "Náročnosť": narocnost,
+                        "J.cena materiálu (€/bm)": cena_polotovaru,
+                        "Náklad materiál (€/ks)": p["Mat. / kus (€)"],
+                        "Náklad kooperácia (€/ks)": p["Koop. / kus (€)"],
+                        "Vstupné náklady (€/ks)": p["Vstupné náklady (€/ks)"],
+                        "Čas (min)": p["Výrobný čas (min/ks)"],
+                        "Jednotková cena (€/ks)": p["Model Cena (€/ks)"],
+                        "Počet kusov": p["Počet kusov"],
+                        "Cena položky spolu (€)": p["Celkom za položku (€)"]
+                    }
+                    riadky_na_zapis.append(novy_riadok_sheet)
+                
+                # Odoslanie priamo na tvoj overený a funkčný Apps Script webový link
+                URL_TVOJHO_APPS_SCRIPTU = "https://script.google.com/macros/s/AKfycbz8d8Mtf2XgjeJx7pqqCm_SVSAHVWfhB6jz6nDql5qACgFgoQzBIOkUFhWnGIIcGVY9/exec"
+                
+                with st.spinner("⏳ Zapisujem ponuku do nového Google Sheetu..."):
+                    try:
+                        odpoved = requests.post(URL_TVOJHO_APPS_SCRIPTU, json=riadky_na_zapis)
+                        vysledok = odpoved.json()
+                        
+                        if vysledok.get("status") == "success":
+                            st.success(f"🎉 Ponuka '{ponuka}' bola úspešne zapísaná!")
+                            st.session_state.kosik = []
+                            st.rerun()
+                        else:
+                            st.error(f"❌ Chyba skriptu tabuľky: {vysledok.get('message')}")
+                    except Exception as e:
+                        st.error(f"❌ Nepodarilo sa spojiť s Google tabuľkou. Skontroluj internet. Detail: {e}")
