@@ -368,7 +368,6 @@ with rk6: st.metric("Koop./kus", f"{cena_kooperacia:.3f} €")
 with rk7: st.metric("VSTUPNÉ NÁKLADY", f"{vstupne_naklady:.3f} €", delta=f"{hmotnost_kusu:.2f} kg", delta_color="off")
 
 # --- NOVÝ SPODNÝ INFORMAČNÝ PANEL S EDITÁCIOU PREDIKCIÍ VEDĽA SEBA ---
-# --- NOVÝ SPODNÝ INFORMAČNÝ PANEL S JEDNÝM CHECKBOXOM A POTVRDENÍM ---
 st.write("")
 
 # Inicializácia trvalých hodnôt v pamäti pre prípad ručného prepisovania
@@ -377,9 +376,9 @@ if "schvaleny_cas" not in st.session_state:
 if "schvalena_cena" not in st.session_state:
     st.session_state.schvalena_cena = None
 
-# Ak sa zmení položka alebo rozmery, resetujeme ručne schválené hodnoty na pôvodné predikcie
-if "stary_item_panel" not in st.session_state or st.session_state.stary_item_panel != item:
-    st.session_state.stary_item_panel = item
+# OPRAVA: Použitie premennej aktualny_item namiesto neexistujúcej item
+if "stary_item_panel" not in st.session_state or st.session_state.stary_item_panel != aktualny_item:
+    st.session_state.stary_item_panel = aktualny_item
     st.session_state.schvaleny_cas = kr1_predikovany if tvar_item == "KR" else stv1_predikovany
     st.session_state.schvalena_cena = kr2_predikovany if tvar_item == "KR" else stv2_predikovany
 
