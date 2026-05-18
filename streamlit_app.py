@@ -466,19 +466,18 @@ if st.session_state.kosik:
             elif not zakaznik.strip():
                 st.error("❌ Prosím, zadaj alebo vyber 'Názov Zákazníka'!")
             else:
-                # POISTKA: Importujeme requests priamo tu, aby nevznikala chyba 'not defined'
+                # Priamy import pre istotu, aby nevznikla chyba 'NameError'
                 import requests
                 
                 riadky_na_zapis = []
                 
                 for p in st.session_state.kosik:
-                    # Rozbor spojeného textu rozmerov, aby sme získali čisté čísla do samostatných stĺpcov
+                    # Rozbor rozmerov z textu na čisté čísla do samostatných stĺpcov
                     try:
                         diely_rozmerov = [float(x.strip()) for x in p["Rozmery"].split("x")]
                     except:
                         diely_rozmerov = [0.0, 0.0, 0.0]
                     
-                    # Detekcia tvaru podľa počtu rozmerov v košíku
                     if len(diely_rozmerov) == 2:
                         tvar_zapis = "KR"
                         val_d = diely_rozmerov[0]
@@ -490,7 +489,7 @@ if st.session_state.kosik:
                         val_l = diely_rozmerov[1] if len(diely_rozmerov) > 1 else 0.0
                         val_v = diely_rozmerov[2] if len(diely_rozmerov) > 2 else 0.0
 
-                    # Mapovanie dát presne na tvoju novú štruktúru stĺpcov (A až W) v Apps Scripte
+                    # Naformátovanie riadku presne podľa stĺpcov A až W pre tvoj Apps Script mieriaci na Hárok1
                     novy_riadok_sheet = {
                         "Dátum CP": datum.strftime("%d.%m.%Y") if hasattr(datum, 'strftime') else str(datum),
                         "Číslo CP": ponuka,
@@ -518,19 +517,23 @@ if st.session_state.kosik:
                     }
                     riadky_na_zapis.append(novy_riadok_sheet)
                 
-                # Odkaz na tvoj overený a nasadený Apps Script webový link
-                URL_TVOJHO_APPS_SCRIPTU = "https://script.google.com/macros/s/AKfycbz8d8Mtf2XgjeJx7pqqCm_SVSAHVWfhB6jz6nDql5qACgFgoQzBIOkUFhWnGIIcGVY9/exec"
+                # Tvoja nová vygenerovaná URL adresa s opraveným indexom a hárkom Hárok1
+                URL_TVOJHO_APPS_SCRIPTU = "https://script.google.com/macros/s/AKfycbwx7sAeUheQf1dm2r6k7jTslD9ufhq2yk1OWZXWjxVkeZOttVI949GIiPGx8l1B3cIP/exec"
                 
-                with st.spinner("⏳ Zapisujem ponuku do nového Google Sheetu..."):
+                with st.spinner("⏳ Zapisujem ponuku do hárku Hárok1..."):
                     try:
                         odpoved = requests.post(URL_TVOJHO_APPS_SCRIPTU, json=riadky_na_zapis)
-                        vysledok = odpoved.json()
                         
-                        if vysledok.get("status") == "success":
-                            st.success(f"🎉 Ponuka '{ponuka}' bola úspešne zapísaná!")
-                            st.session_state.kosik = []
-                            st.rerun()
-                        else:
-                            st.error(f"❌ Chyba skriptu tabuľky: {vysledok.get('message')}")
+                        try:
+                            vysledok = odpoved.json()
+                            if vysledok.get("status") == "success":
+                                st.success(f"🎉 Ponuka '{ponuka}' bola úspešne zapísaná do záložky Hárok1!")
+                                st.session_state.kosik = []
+                                st.rerun()
+                            else:
+                                st.error(f"❌ Chyba skriptu tabuľky: {vysledok.get('message')}")
+                        except:
+                            st.error(f"❌ Odpoveď z Google nebola v očakávanom formáte. Text odpovede: {odpoved.text[:200]}")
+                            
                     except Exception as e:
-                        st.error(f"❌ Nepodarilo sa spojiť s Google tabuľkou. Detail: {e}")
+                        st.error(f"❌ Nepodarilo sa nadviazať spojenie. Detail: {e}")
