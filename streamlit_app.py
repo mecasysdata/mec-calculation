@@ -439,7 +439,6 @@ if st.session_state.cas_potvrdeny and not st.session_state.cena_potvrdena:
 elif st.session_state.cena_potvrdena:
     st.success(f"💰 Cena úspešne schválená na: **{st.session_state.schvalena_cena:.2f} €**. Položku môžete vložiť do košíka.")
 
-
 # --- 11. ZOBRAZENIE KOŠÍKA (Na spodku aplikácie) ---
 if st.session_state.kosik:
     st.write("---")
@@ -460,7 +459,12 @@ if st.session_state.kosik:
             st.session_state.kosik = []
             st.rerun()
             
-    with col_btn2:
+    st.write("") # Drobné odsadene pre tlačidlá
+    
+    # Rozdelíme spodný riadok na 2 stĺpce pre Uloženie a PDF generovanie vedľa seba
+    col_save, col_pdf = st.columns(2)
+    
+    with col_save:
         if st.button("💾 Uložiť a Uzatvoriť ponuku", type="primary", use_container_width=True):
             if not ponuka.strip():
                 st.error("❌ Prosím, zadaj 'Označenie CP' pred uložením ponuky!")
@@ -470,7 +474,6 @@ if st.session_state.kosik:
                 import requests
                 
                 riadky_na_zapis = []
-                
                 for p in st.session_state.kosik:
                     try:
                         diely_rozmerov = [float(x.strip()) for x in p["Rozmery"].split("x")]
@@ -521,17 +524,95 @@ if st.session_state.kosik:
                     try:
                         odpoved = requests.post(URL_TVOJHO_APPS_SCRIPTU, json=riadky_na_zapis)
                         
-                        # Opravené a nepriestrelné spracovanie odpovede z Google
                         if "success" in odpoved.text.lower():
                             st.success(f"🎉 Ponuka '{ponuka}' bola úspešne zapísaná do záložky Hárok1!")
+                            
+                            # ÚPLNÝ RESET FORMULÁRA - pre uvoľnenie miesta na novú ponuku
                             st.session_state.kosik = []
+                            st.session_state.stary_item = ""
+                            st.session_state.aktualny_pocet_kusov = 1
+                            st.session_state.cas_potvrdeny = False
+                            st.session_state.cena_potvrdena = False
+                            
+                            # Vyčistenie textových vstupov, ak majú kľúče
+                            if "item_input" in st.session_state: st.session_state.item_input = ""
+                            
                             st.rerun()
                         else:
-                            try:
-                                vysledok = odpoved.json()
-                                st.error(f"❌ Chyba skriptu tabuľky: {vysledok.get('message')}")
-                            except:
-                                st.error(f"❌ Neočakávaná odpoveď: {odpoved.text[:200]}")
+                            st.error(f"❌ Chyba skriptu tabuľky: {odpoved.text}")
                             
                     except Exception as e:
                         st.error(f"❌ Nepodarilo sa nadviazať spojenie. Detail: {e}")
+
+    with col_pdf:
+        # Dynamické generovanie PDF priamo v pamäti pomocou fpdf2
+        try:
+            import subprocess
+            import sys
+            # Poistka: Automatická inštalácia fpdf2, ak v prostredí chýba, bez zásahu užívateľa
+            try:
+                from fpdf import FPDF
+            except ImportError:
+                with st.spinner("⏳ Inicializujem PDF modul..."):
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", "fpdf2"])
+                from fpdf import FPDF
+
+            # Tvorba štruktúry PDF dokumentu
+            class CP_PDF(FPDF):
+                def header(self):
+                    self.set_font('Helvetica', 'B', 16)
+                    self.cell(0, 10, 'CENOVÁ PONUKA (MEC Calculation)', ln=True, align='C')
+                    self.ln(5)
+                def footer(self):
+                    self.set_y(-15)
+                    self.set_font('Helvetica', 'I', 8)
+                    self.cell(0, 10, f'Strana {self.page_no()}', align='C')
+
+            # Vytvorenie inštancie PDF dokumentu s kódovaním Latin-1 (bezpečné pre základné znaky a €)
+            pdf = CP_PDF()
+            pdf.add_page()
+            pdf.set_font("Helvetica", size=10)
+            
+            # Hlavička s info o zákazníkovi a CP
+            pdf.set_font("Helvetica", "B", 11)
+            pdf.cell(0, 7, f"Oznacenie CP: {ponuka}", ln=True)
+            pdf.cell(0, 7, f"Datum vyhotovenia: {datum.strftime('%d.%m.%Y') if hasattr(datum, 'strftime') else str(datum)}", ln=True)
+            pdf.cell(0, 7, f"Zakaznik: {zakaznik} ({krajina_hodnota})", ln=True)
+            pdf.ln(5)
+            
+            # Tabuľka položiek v košíku
+            pdf.set_font("Helvetica", "B", 9)
+            # Nastavenie šírok stĺpcov
+            pdf.cell(35, 7, "ITEM", border=1)
+            pdf.cell(35, 7, "Material", border=1)
+            pdf.cell(35, 7, "Rozmery", border=1)
+            pdf.cell(20, 7, "Pocet ks", border=1)
+            pdf.cell(30, 7, "Cena/ks", border=1)
+            pdf.cell(35, 7, "Spolu s DPH", border=1, ln=True)
+            
+            pdf.set_font("Helvetica", size=9)
+            for item_kosik in st.session_state.kosik:
+                pdf.cell(35, 7, str(item_kosik["ITEM"]), border=1)
+                pdf.cell(35, 7, str(item_kosik["Materiál"]), border=1)
+                pdf.cell(35, 7, str(item_kosik["Rozmery"]), border=1)
+                pdf.cell(20, 7, str(item_kosik["Počet kusov"]), border=1, align='C')
+                pdf.cell(30, 7, f"{item_kosik['Model Cena (€/ks)']:.2f} EUR", border=1, align='R')
+                pdf.cell(35, 7, f"{item_kosik['Celkom za položku (€)']:.2f} EUR", border=1, align='R', ln=True)
+                
+            pdf.ln(5)
+            pdf.set_font("Helvetica", "B", 12)
+            pdf.cell(0, 10, f"CELKOVA CENA PONUKY: {celkova_suma:.2f} EUR", ln=True, align='R')
+            
+            # Konverzia na bajty pripravené pre stiahnutie
+            pdf_data = pdf.output()
+            
+            # Samotné sťahovacie tlačidlo s presýpacími hodinami ako ikonou
+            st.download_button(
+                label="📄 Generovať a stiahnuť PDF ponuku",
+                data=bytes(pdf_data),
+                file_name=f"Cenova_ponuka_{ponuka if ponuka.strip() else 'MEC'}.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+        except Exception as pdf_err:
+            st.error(f"Nepodarilo sa pripraviť PDF modul: {pdf_err}")
