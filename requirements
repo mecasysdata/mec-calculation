@@ -4,4 +4,4 @@ numpy==2.0.2
 xgboost==3.2.0
 scikit-learn==1.6.1
 openpyxl==3.1.5
-reportlab
+reportlab==4.1.0
