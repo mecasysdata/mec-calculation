@@ -439,6 +439,8 @@ elif st.session_state.cena_potvrdena:
     st.success(f"💰 Cena úspešne schválená na: **{st.session_state.schvalena_cena:.2f} €**. Položku môžete vložiť do košíka.")
 
 # --- 11. ZOBRAZENIE KOŠÍKA (Na spodku aplikácie) ---
+# --- 11. ZOBRAZENIE KOŠÍKA A FINÁLNE AKCIE ---
+# Tabuľku košíka zobrazíme, len ak nie je prázdny
 if st.session_state.kosik:
     st.write("---")
     st.subheader(f"📋 Aktuálny zoznam položiek v ponuke (Počet: {len(st.session_state.kosik)})")
@@ -451,14 +453,16 @@ if st.session_state.kosik:
     col_sum1, col_sum2 = st.columns([5, 3])
     with col_sum2:
         st.metric("CELKOVÁ CENA PONUKY", f"{celkova_suma:.2f} €")
-            
-    st.write("") # Drobné odsadene pre tlačidlá
+
+# TENTO PANEL AKCIÍ JE TERAZ EXTERNÝ – ZOBRAZÍ SA VŽDY, KEĎ JE V KOŠÍKU TOVAR
+if st.session_state.kosik:
+    st.write("") 
     st.write("### ⚙️ Akcie s cenovou ponukou")
     
     # Rozdelenie na 3 stĺpce vedľa seba
     col_pdf, col_save, col_reset = st.columns(3)
     
-    # 1. STĹPEC: Najprv generovanie PDF s animáciou hodín
+    # 1. STĹPEC: Generovanie podrobného PDF
     with col_pdf:
         try:
             import unicodedata
@@ -473,53 +477,60 @@ if st.session_state.kosik:
 
             class CP_PDF(FPDF):
                 def header(self):
-                    self.set_font('Helvetica', 'B', 14)
+                    self.set_font('Helvetica', 'B', 12)
                     self.cell(0, 10, 'CENOVA PONUKA (MEC Calculation)', ln=True, align='C')
-                    self.ln(5)
+                    self.ln(3)
                 def footer(self):
                     self.set_y(-15)
                     self.set_font('Helvetica', 'I', 8)
                     self.cell(0, 10, f'Strana {self.page_no()}', align='C')
 
             with st.spinner("⏳ Pripravujem a generujem PDF dokument..."):
-                pdf = CP_PDF()
+                # Otočíme stránku na šírku (Landscape 'L'), aby sa tam zmestili všetky stĺpce
+                pdf = CP_PDF(orientation='L', unit='mm', format='A4')
                 pdf.add_page()
-                pdf.set_font("Helvetica", size=10)
+                pdf.set_font("Helvetica", size=9)
                 
                 ciste_ponuka = odstran_diakritiku(ponuka)
                 ciste_zakaznik = odstran_diakritiku(zakaznik)
                 ciste_krajina = odstran_diakritiku(krajina_hodnota)
                 ciste_datum = datum.strftime('%d.%m.%Y') if hasattr(datum, 'strftime') else odstran_diakritiku(str(datum))
                 
-                pdf.set_font("Helvetica", "B", 11)
-                pdf.cell(0, 7, f"Oznaczenie CP: {ciste_ponuka}", ln=True)
-                pdf.cell(0, 7, f"Datum vyhotovenia: {ciste_datum}", ln=True)
-                pdf.cell(0, 7, f"Zakaznik: {ciste_zakaznik} ({ciste_krajina})", ln=True)
-                pdf.ln(5)
+                pdf.set_font("Helvetica", "B", 10)
+                pdf.cell(0, 6, f"Oznaczenie CP: {ciste_ponuka}", ln=True)
+                pdf.cell(0, 6, f"Datum vyhotovenia: {ciste_datum}", ln=True)
+                pdf.cell(0, 6, f"Zakaznik: {ciste_zakaznik} ({ciste_krajina})", ln=True)
+                pdf.ln(4)
                 
-                pdf.set_font("Helvetica", "B", 9)
-                pdf.cell(35, 7, "ITEM", border=1)
-                pdf.cell(35, 7, "Material", border=1)
-                pdf.cell(35, 7, "Rozmery", border=1)
-                pdf.cell(20, 7, "Pocet ks", border=1, align='C')
+                # Definícia stĺpcov pre Landscape orientáciu (Celková šírka cca 275 mm)
+                # ITEM, Material, Akost, Rozmery, Pocet ks, Mat/ks, Koop/ks, Vst. nakl, Cena/ks, Spolu
+                pdf.set_font("Helvetica", "B", 8)
+                pdf.cell(25, 7, "ITEM", border=1)
+                pdf.cell(30, 7, "Material", border=1)
+                pdf.cell(25, 7, "Akost", border=1)
+                pdf.cell(30, 7, "Rozmery", border=1)
+                pdf.cell(16, 7, "Pocet ks", border=1, align='C')
+                pdf.cell(25, 7, "Mat./ks", border=1, align='R')
+                pdf.cell(25, 7, "Koop./ks", border=1, align='R')
+                pdf.cell(30, 7, "Vst. naklady", border=1, align='R')
                 pdf.cell(30, 7, "Cena/ks", border=1, align='R')
                 pdf.cell(35, 7, "Spolu", border=1, align='R', ln=True)
                 
-                pdf.set_font("Helvetica", size=9)
+                pdf.set_font("Helvetica", size=8)
                 for item_kosik in st.session_state.kosik:
-                    item_text = odstran_diakritiku(item_kosik["ITEM"])
-                    mat_text = odstran_diakritiku(item_kosik["Materiál"])
-                    rozmery_text = odstran_diakritiku(item_kosik["Rozmery"])
-                    
-                    pdf.cell(35, 7, item_text, border=1)
-                    pdf.cell(35, 7, mat_text, border=1)
-                    pdf.cell(35, 7, rozmery_text, border=1)
-                    pdf.cell(20, 7, str(item_kosik["Počet kusov"]), border=1, align='C')
+                    pdf.cell(25, 7, odstran_diakritiku(item_kosik["ITEM"]), border=1)
+                    pdf.cell(30, 7, odstran_diakritiku(item_kosik["Materiál"]), border=1)
+                    pdf.cell(25, 7, odstran_diakritiku(item_kosik["Akosť"]), border=1)
+                    pdf.cell(30, 7, odstran_diakritiku(item_kosik["Rozmery"]), border=1)
+                    pdf.cell(16, 7, str(item_kosik["Počet kusov"]), border=1, align='C')
+                    pdf.cell(25, 7, f"{item_kosik['Mat. / kus (€)']:.3f} EUR", border=1, align='R')
+                    pdf.cell(25, 7, f"{item_kosik['Koop. / kus (€)']:.3f} EUR", border=1, align='R')
+                    pdf.cell(30, 7, f"{item_kosik['Vstupné náklady (€/ks)']:.3f} EUR", border=1, align='R')
                     pdf.cell(30, 7, f"{item_kosik['Model Cena (€/ks)']:.2f} EUR", border=1, align='R')
                     pdf.cell(35, 7, f"{item_kosik['Celkom za položku (€)']:.2f} EUR", border=1, align='R', ln=True)
                     
-                pdf.ln(5)
-                pdf.set_font("Helvetica", "B", 12)
+                pdf.ln(4)
+                pdf.set_font("Helvetica", "B", 11)
                 pdf.cell(0, 10, f"CELKOVA CENA PONUKY: {celkova_suma:.2f} EUR", ln=True, align='R')
                 
                 pdf_data = pdf.output()
@@ -534,7 +545,7 @@ if st.session_state.kosik:
         except Exception as pdf_err:
             st.error(f"Nepodarilo sa pripraviť PDF modul: {pdf_err}")
 
-    # 2. STĹPEC: Uloženie a uzatvorenie ponuky (Zápis do Google Sheetu)
+    # 2. STĹPEC: Uloženie do Google Sheetu
     with col_save:
         if st.button("💾 2. Uložiť a Uzatvoriť ponuku", type="primary", use_container_width=True):
             if not ponuka.strip():
@@ -596,23 +607,26 @@ if st.session_state.kosik:
                         odpoved = requests.post(URL_TVOJHO_APPS_SCRIPTU, json=riadky_na_zapis)
                         
                         if "success" in odpoved.text.lower():
-                            st.success(f"🎉 Ponuka '{ponuka}' bola úspešne zapísaná do záložky Hárok1! Teraz môžete kliknúť na 'Založiť novú ponuku'.")
+                            st.success(f"🎉 Ponuka '{ponuka}' bola úspešne zapísaná! Teraz stlačte tlačidlo vedľa pre novú kalkuláciu.")
                         else:
                             st.error(f"❌ Chyba skriptu tabuľky: {odpoved.text}")
-                            
                     except Exception as e:
-                        st.error(f"❌ Nepodarilo sa nadviazať spojenie. Detail: {e}")
+                        st.error(f"❌ Nepodarilo sa nadviazať spojenie: {e}")
 
-    # 3. STĹPEC: ÚPLNÝ RESET A VYČISTENIE CELÉHO FORMULÁRA
+    # 3. STĹPEC: NEKOMPROMISNÝ RESET A VYČISTENIE CELÉHO PREHLIADAČA
     with col_reset:
         if st.button("🆕 Založiť novú cenovú ponuku", type="secondary", use_container_width=True):
-            with st.spinner("⏳ Čistím aplikáciu a otváram novú cenovú ponuku..."):
-                # Vyčistíme úplne všetky uložené stavy (vrátane zákazníkov, textov a pod.)
+            with st.spinner("⏳ Čistím prostredie a nulujem všetky formuláre..."):
+                # 1. Úplne vymažeme session state zo strany Pythonu
                 for kluc in list(st.session_state.keys()):
                     del st.session_state[kluc]
                 
-                # Znovu zinicializujeme prázdny košík pre bezproblémový štart
+                # 2. Nastavíme čisté predvolené stavy, aby nevznikla chyba pri štarte
                 st.session_state.kosik = []
+                st.session_state.stary_item = ""
+                st.session_state.aktualny_pocet_kusov = 1
+                st.session_state.cas_potvrdeny = False
+                st.session_state.cena_potvrdena = False
                 
-                # Vynútené prenačítanie celej stránky s čistým štítom
+                # 3. Tvrdý reštart Streamlitu prinúti vymazať aj cache HTML formulárov v prehliadači
                 st.rerun()
