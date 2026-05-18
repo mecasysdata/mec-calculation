@@ -367,11 +367,8 @@ with rk5: st.metric("Mat./kus", f"{cena_mat_kus:.3f} €")
 with rk6: st.metric("Koop./kus", f"{cena_kooperacia:.3f} €")
 with rk7: st.metric("VSTUPNÉ NÁKLADY", f"{vstupne_naklady:.3f} €", delta=f"{hmotnost_kusu:.2f} kg", delta_color="off")
 
-# --- NOVÝ SPODNÝ INFORMAČNÝ PANEL S EDITÁCIOU PREDIKCIÍ ---
-
-# --- NOVÝ SPODNÝ INFORMAČNÝ PANEL S EDITÁCIOU PREDIKCIÍ (VEDĽA SEBA) ---
+# --- NOVÝ SPODNÝ INFORMAČNÝ PANEL S EDITÁCIOU PREDIKCIÍ VEDĽA SEBA ---
 st.write("")
-# Vytvoríme sivý box pomocou HTML/CSS kontajneru v Streamlite
 with st.container():
     st.markdown(
         """
@@ -388,10 +385,7 @@ with st.container():
         """, unsafe_allow_html=True
     )
     
-    # Spustíme div pre sivé pozadie
     st.markdown('<div class="sivy-panel">', unsafe_allow_html=True)
-    
-    # Rozdelíme panel na dve hlavné časti: vľavo technické info, vpravo predikcie
     col_inf1, col_inf2 = st.columns([4, 4])
     
     with col_inf1:
@@ -405,19 +399,38 @@ with st.container():
         """, unsafe_allow_html=True)
         
     with col_inf2:
-        # Vytvoríme dva pod-stĺpce vedľa seba pre editovateľné polia
+        # Checkbox pre schválenie hodnôt z AI
+        ai_schvalene = st.checkbox("✅ Použiť čisté predikcie z AI modelov bez zmien", value=True, key="ai_ok")
+        
         col_cas, col_cena = st.columns(2)
         
-        # Podľa zvoleného tvaru podhodíme užívateľovi hodnoty z RF modelov
         if tvar_item == "KR":
+            # Inicializujeme stv premenné na 0, keďže robíme KR
+            stv1, stv2 = 0.0, 0.0
+            
             with col_cas:
-                finalny_cas = st.number_input("Schváliť výrobný čas (min)", min_value=0.0, value=kr1_predikovany, format="%.2f", key="schvaleny_cas_kr")
+                if ai_schvalene:
+                    kr1 = st.number_input("Schváliť výrobný čas (min)", value=kr1_predikovany, disabled=True, key="c1_kr")
+                else:
+                    kr1 = st.number_input("Schváliť výrobný čas (min)", min_value=0.0, value=kr1_predikovany, format="%.2f", key="c2_kr")
             with col_cena:
-                finalna_cena = st.number_input("Schváliť cenu komponentu (€)", min_value=0.0, value=kr2_predikovany, format="%.2f", key="schvalena_cena_kr")
+                if ai_schvalene:
+                    kr2 = st.number_input("Schváliť cenu komponentu (€)", value=kr2_predikovany, disabled=True, key="p1_kr")
+                else:
+                    kr2 = st.number_input("Schváliť cenu komponentu (€)", min_value=0.0, value=kr2_predikovany, format="%.2f", key="p2_kr")
         else:
+            # Inicializujeme kr premenné na 0, keďže robíme STV
+            kr1, kr2 = 0.0, 0.0
+            
             with col_cas:
-                finalny_cas = st.number_input("Schváliť výrobný čas (min)", min_value=0.0, value=stv1_predikovany, format="%.2f", key="schvaleny_cas_stv")
+                if ai_schvalene:
+                    stv1 = st.number_input("Schváliť výrobný čas (min)", value=stv1_predikovany, disabled=True, key="c1_stv")
+                else:
+                    stv1 = st.number_input("Schváliť výrobný čas (min)", min_value=0.0, value=stv1_predikovany, format="%.2f", key="c2_stv")
             with col_cena:
-                finalna_cena = st.number_input("Schváliť cenu komponentu (€)", min_value=0.0, value=stv2_predikovany, format="%.2f", key="schvalena_cena_stv")
+                if ai_schvalene:
+                    stv2 = st.number_input("Schváliť cenu komponentu (€)", value=stv2_predikovany, disabled=True, key="p1_stv")
+                else:
+                    stv2 = st.number_input("Schváliť cenu komponentu (€)", min_value=0.0, value=stv2_predikovany, format="%.2f", key="p2_stv")
 
     st.markdown('</div>', unsafe_allow_html=True)
