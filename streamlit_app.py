@@ -362,6 +362,8 @@ with rk6: st.metric("Koop./kus", f"{cena_kooperacia:.3f} €")
 with rk7: st.metric("VSTUPNÉ NÁKLADY", f"{vstupne_naklady:.3f} €", delta=f"{hmotnost_kusu:.2f} kg", delta_color="off")
 
 # --- NOVÝ SPODNÝ INFORMAČNÝ PANEL S EDITÁCIOU PREDIKCIÍ ---
+
+# --- NOVÝ SPODNÝ INFORMAČNÝ PANEL S EDITÁCIOU PREDIKCIÍ (VEDĽA SEBA) ---
 st.write("")
 # Vytvoríme sivý box pomocou HTML/CSS kontajneru v Streamlite
 with st.container():
@@ -383,8 +385,8 @@ with st.container():
     # Spustíme div pre sivé pozadie
     st.markdown('<div class="sivy-panel">', unsafe_allow_html=True)
     
-    # Rozdelíme panel na dve časti: vľavo technické info, vpravo interaktívne overenie predikcií
-    col_inf1, col_inf2 = st.columns([5, 3])
+    # Rozdelíme panel na dve hlavné časti: vľavo technické info, vpravo predikcie
+    col_inf1, col_inf2 = st.columns([4, 4])
     
     with col_inf1:
         st.markdown(f"""
@@ -397,12 +399,19 @@ with st.container():
         """, unsafe_allow_html=True)
         
     with col_inf2:
-        # Podľa zvoleného tvaru podhodíme užívateľovi na schválenie/prepísanie hodnoty z RF modelov
+        # Vytvoríme dva pod-stĺpce vedľa seba pre editovateľné polia
+        col_cas, col_cena = st.columns(2)
+        
+        # Podľa zvoleného tvaru podhodíme užívateľovi hodnoty z RF modelov
         if tvar_item == "KR":
-            finalny_cas = st.number_input("Schváliť výrobný čas (min)", min_value=0.0, value=kr1_predikovany, format="%.2f", key="schvaleny_cas_kr")
-            finalna_cena = st.number_input("Schváliť cenu komponentu (€)", min_value=0.0, value=kr2_predikovany, format="%.2f", key="schvalena_cena_kr")
+            with col_cas:
+                finalny_cas = st.number_input("Schváliť výrobný čas (min)", min_value=0.0, value=kr1_predikovany, format="%.2f", key="schvaleny_cas_kr")
+            with col_cena:
+                finalna_cena = st.number_input("Schváliť cenu komponentu (€)", min_value=0.0, value=kr2_predikovany, format="%.2f", key="schvalena_cena_kr")
         else:
-            finalny_cas = st.number_input("Schváliť výrobný čas (min)", min_value=0.0, value=stv1_predikovany, format="%.2f", key="schvaleny_cas_stv")
-            finalna_cena = st.number_input("Schváliť cenu komponentu (€)", min_value=0.0, value=stv2_predikovany, format="%.2f", key="schvalena_cena_stv")
+            with col_cas:
+                finalny_cas = st.number_input("Schváliť výrobný čas (min)", min_value=0.0, value=stv1_predikovany, format="%.2f", key="schvaleny_cas_stv")
+            with col_cena:
+                finalna_cena = st.number_input("Schváliť cenu komponentu (€)", min_value=0.0, value=stv2_predikovany, format="%.2f", key="schvalena_cena_stv")
 
     st.markdown('</div>', unsafe_allow_html=True)
