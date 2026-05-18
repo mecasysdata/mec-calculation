@@ -368,7 +368,21 @@ with rk6: st.metric("Koop./kus", f"{cena_kooperacia:.3f} €")
 with rk7: st.metric("VSTUPNÉ NÁKLADY", f"{vstupne_naklady:.3f} €", delta=f"{hmotnost_kusu:.2f} kg", delta_color="off")
 
 # --- NOVÝ SPODNÝ INFORMAČNÝ PANEL S EDITÁCIOU PREDIKCIÍ VEDĽA SEBA ---
+# --- NOVÝ SPODNÝ INFORMAČNÝ PANEL S JEDNÝM CHECKBOXOM A POTVRDENÍM ---
 st.write("")
+
+# Inicializácia trvalých hodnôt v pamäti pre prípad ručného prepisovania
+if "schvaleny_cas" not in st.session_state:
+    st.session_state.schvaleny_cas = None
+if "schvalena_cena" not in st.session_state:
+    st.session_state.schvalena_cena = None
+
+# Ak sa zmení položka alebo rozmery, resetujeme ručne schválené hodnoty na pôvodné predikcie
+if "stary_item_panel" not in st.session_state or st.session_state.stary_item_panel != item:
+    st.session_state.stary_item_panel = item
+    st.session_state.schvaleny_cas = kr1_predikovany if tvar_item == "KR" else stv1_predikovany
+    st.session_state.schvalena_cena = kr2_predikovany if tvar_item == "KR" else stv2_predikovany
+
 with st.container():
     st.markdown(
         """
@@ -386,7 +400,7 @@ with st.container():
     )
     
     st.markdown('<div class="sivy-panel">', unsafe_allow_html=True)
-    col_inf1, col_inf2 = st.columns([4, 4])
+    col_inf1, col_inf2 = st.columns([4, 5])
     
     with col_inf1:
         st.markdown(f"""
@@ -399,38 +413,41 @@ with st.container():
         """, unsafe_allow_html=True)
         
     with col_inf2:
-        # Checkbox pre schválenie hodnôt z AI
-        ai_schvalene = st.checkbox("✅ Použiť čisté predikcie z AI modelov bez zmien", value=True, key="ai_ok")
+        # Iba jeden čistý checkbox na potvrdenie modelu
+        model_ok = st.checkbox("☑️ Potvrdzujem správnosť hodnôt z AI modelu", value=True, key="potvrdenie_modelu")
         
         col_cas, col_cena = st.columns(2)
         
-        if tvar_item == "KR":
-            # Inicializujeme stv premenné na 0, keďže robíme KR
-            stv1, stv2 = 0.0, 0.0
-            
+        if model_ok:
+            # Ak užívateľ potvrdil model, polia sú zamknuté a berú čisté predikcie
             with col_cas:
-                if ai_schvalene:
-                    kr1 = st.number_input("Schváliť výrobný čas (min)", value=kr1_predikovany, disabled=True, key="c1_kr")
-                else:
-                    kr1 = st.number_input("Schváliť výrobný čas (min)", min_value=0.0, value=kr1_predikovany, format="%.2f", key="c2_kr")
+                st.number_input("Výrobný čas (min)", value=kr1_predikovany if tvar_item == "KR" else stv1_predikovany, disabled=True, key="p_cas_dis")
             with col_cena:
-                if ai_schvalene:
-                    kr2 = st.number_input("Schváliť cenu komponentu (€)", value=kr2_predikovany, disabled=True, key="p1_kr")
-                else:
-                    kr2 = st.number_input("Schváliť cenu komponentu (€)", min_value=0.0, value=kr2_predikovany, format="%.2f", key="p2_kr")
+                st.number_input("Cena komponentu (€)", value=kr2_predikovany if tvar_item == "KR" else stv2_predikovany, disabled=True, key="p_cena_dis")
+            
+            # Priradenie do finálnych premenných (čistý model)
+            kr1 = kr1_predikovany if tvar_item == "KR" else 0.0
+            kr2 = kr2_predikovany if tvar_item == "KR" else 0.0
+            stv1 = stv1_predikovany if tvar_item != "KR" else 0.0
+            stv2 = stv2_predikovany if tvar_item != "KR" else 0.0
         else:
-            # Inicializujeme kr premenné na 0, keďže robíme STV
-            kr1, kr2 = 0.0, 0.0
-            
+            # Ak užívateľ odškrtol model, polia sa odomknú a načítajú naposledy uložené/upravené hodnoty
             with col_cas:
-                if ai_schvalene:
-                    stv1 = st.number_input("Schváliť výrobný čas (min)", value=stv1_predikovany, disabled=True, key="c1_stv")
-                else:
-                    stv1 = st.number_input("Schváliť výrobný čas (min)", min_value=0.0, value=stv1_predikovany, format="%.2f", key="c2_stv")
+                novy_cas = st.number_input("Upraviť výrobný čas (min)", min_value=0.0, value=st.session_state.schvaleny_cas, format="%.2f", key="p_cas_en")
             with col_cena:
-                if ai_schvalene:
-                    stv2 = st.number_input("Schváliť cenu komponentu (€)", value=stv2_predikovany, disabled=True, key="p1_stv")
-                else:
-                    stv2 = st.number_input("Schváliť cenu komponentu (€)", min_value=0.0, value=stv2_predikovany, format="%.2f", key="p2_stv")
+                nova_cena = st.number_input("Upraviť cenu komponentu (€)", min_value=0.0, value=st.session_state.schvalena_cena, format="%.2f", key="p_cena_en")
+            
+            # Tlačidlo pre definitívne uloženie ručne prepísaných hodnôt
+            if st.button("💾 Uložiť nové hodnoty", type="secondary", use_container_width=True):
+                st.session_state.schvaleny_cas = novy_cas
+                st.session_state.schvalena_cena = nova_cena
+                st.success("Hodnoty boli manuálne upravené a uložené!")
+                st.rerun()
+            
+            # Priradenie manuálne zadaných hodnôt do tvojich premenných
+            kr1 = st.session_state.schvaleny_cas if tvar_item == "KR" else 0.0
+            kr2 = st.session_state.schvalena_cena if tvar_item == "KR" else 0.0
+            stv1 = st.session_state.schvaleny_cas if tvar_item != "KR" else 0.0
+            stv2 = st.session_state.schvalena_cena if tvar_item != "KR" else 0.0
 
     st.markdown('</div>', unsafe_allow_html=True)
