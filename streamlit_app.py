@@ -347,7 +347,6 @@ st.markdown(
     """, unsafe_allow_html=True
 )
 
-# --- 10. MEC AI COMPACT DASHBOARD (Všetko v jednom riadku podľa dohody) ---
 # --- 10. MEC AI COMPACT DASHBOARD ---
 st.divider()
 st.subheader("🤖MEC AI")
@@ -440,7 +439,6 @@ elif st.session_state.cena_potvrdena:
     st.success(f"💰 Cena úspešne schválená na: **{st.session_state.schvalena_cena:.2f} €**. Položku môžete vložiť do košíka.")
 
 # --- 11. ZOBRAZENIE KOŠÍKA (Na spodku aplikácie) ---
-# --- 11. ZOBRAZENIE KOŠÍKA (Na spodku aplikácie) ---
 if st.session_state.kosik:
     st.write("---")
     st.subheader(f"📋 Aktuálny zoznam položiek v ponuke (Počet: {len(st.session_state.kosik)})")
@@ -455,7 +453,8 @@ if st.session_state.kosik:
         st.metric("CELKOVÁ CENA PONUKY", f"{celkova_suma:.2f} €")
             
     st.write("") # Drobné odsadene pre tlačidlá
-       
+    st.write("### ⚙️ Akcie s cenovou ponukou")
+    
     # Rozdelenie na 3 stĺpce vedľa seba
     col_pdf, col_save, col_reset = st.columns(3)
     
@@ -482,7 +481,6 @@ if st.session_state.kosik:
                     self.set_font('Helvetica', 'I', 8)
                     self.cell(0, 10, f'Strana {self.page_no()}', align='C')
 
-            # Vytvorenie a nastavenie PDF obalíme do spinnera (hodín)
             with st.spinner("⏳ Pripravujem a generujem PDF dokument..."):
                 pdf = CP_PDF()
                 pdf.add_page()
@@ -536,7 +534,7 @@ if st.session_state.kosik:
         except Exception as pdf_err:
             st.error(f"Nepodarilo sa pripraviť PDF modul: {pdf_err}")
 
-    # 2. STĹPEC: Uloženie a uzatvorenie ponuky (Zápis do Google Sheetu s hodinami)
+    # 2. STĹPEC: Uloženie a uzatvorenie ponuky (Zápis do Google Sheetu)
     with col_save:
         if st.button("💾 2. Uložiť a Uzatvoriť ponuku", type="primary", use_container_width=True):
             if not ponuka.strip():
@@ -598,22 +596,23 @@ if st.session_state.kosik:
                         odpoved = requests.post(URL_TVOJHO_APPS_SCRIPTU, json=riadky_na_zapis)
                         
                         if "success" in odpoved.text.lower():
-                            st.success(f"Ponuka '{ponuka}' bola úspešne zapísaná do záložky Hárok1! Teraz môžete kliknúť na 'Založiť novú ponuku'.")
+                            st.success(f"🎉 Ponuka '{ponuka}' bola úspešne zapísaná do záložky Hárok1! Teraz môžete kliknúť na 'Založiť novú ponuku'.")
                         else:
                             st.error(f"❌ Chyba skriptu tabuľky: {odpoved.text}")
                             
                     except Exception as e:
                         st.error(f"❌ Nepodarilo sa nadviazať spojenie. Detail: {e}")
 
-    # 3. STĹPEC: Vyčistenie formulára s animáciou hodín
+    # 3. STĹPEC: ÚPLNÝ RESET A VYČISTENIE CELÉHO FORMULÁRA
     with col_reset:
         if st.button("🆕 Založiť novú cenovú ponuku", type="secondary", use_container_width=True):
-            with st.spinner("⏳ Čistím formulár a zakladám novú ponuku..."):
-                st.session_state.kosik = []
-                st.session_state.stary_item = ""
-                st.session_state.aktualny_pocet_kusov = 1
-                st.session_state.cas_potvrdeny = False
-                st.session_state.cena_potvrdena = False
+            with st.spinner("⏳ Čistím aplikáciu a otváram novú cenovú ponuku..."):
+                # Vyčistíme úplne všetky uložené stavy (vrátane zákazníkov, textov a pod.)
+                for kluc in list(st.session_state.keys()):
+                    del st.session_state[kluc]
                 
-                st.success("✨ Formulár bol úspešne vyčistený. Môžete zadávať novú ponuku!")
+                # Znovu zinicializujeme prázdny košík pre bezproblémový štart
+                st.session_state.kosik = []
+                
+                # Vynútené prenačítanie celej stránky s čistým štítom
                 st.rerun()
