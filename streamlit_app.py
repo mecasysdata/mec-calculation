@@ -19,6 +19,12 @@ if "stary_item" not in st.session_state:
 if "aktualny_pocet_kusov" not in st.session_state:
     st.session_state.aktualny_pocet_kusov = 1
 
+# Inicializácia stavov pre AI modely
+if "cas_potvrdeny" not in st.session_state:
+    st.session_state.cas_potvrdeny = False
+if "schvaleny_cas" not in st.session_state:
+    st.session_state.schvaleny_cas = 3.0
+
 # --- 2. CACHING (Sťahovanie dát len raz) ---
 @st.cache_data(ttl=600)  # Dáta sa držia v pamäti 10 minút
 def load_data_from_url(url):
@@ -108,10 +114,14 @@ if item != st.session_state.stary_item:
         st.session_state.stary_item = item
         
         # Odstránime kľúče z pamäte, aby sa widgety vykreslili čisté a prázdne
-        kluce_na_vymazanie = ["pocet_input", "narocnost_input", "tvar_input", "d_kr", "l_kr", "d_stv", "s_stv", "v_stv", "mat_select", "akost_multi", "man_akost_chk", "polo_inteligent", "koop_main_checkbox", "manual_rho", "mat_k", "druh_k"]
+        kluce_na_vymazanie = ["pocet_input", "narocnost_input", "tvar_input", "d_kr", "l_kr", "d_stv", "s_stv", "v_stv", "mat_select", "akost_multi", "man_akost_chk", "polo_inteligent", "koop_main_checkbox", "manual_rho", "mat_k", "druh_k", "vystupny_cas_input"]
         for klic in kluce_na_vymazanie:
             if klic in st.session_state:
                 del st.session_state[klic]
+        
+        # Reset stavov pre AI model
+        st.session_state.cas_potvrdeny = False
+        st.session_state.schvaleny_cas = 3.0
         st.rerun()
     else:
         st.session_state.stary_item = item
@@ -205,172 +215,4 @@ def get_mecasys_logic(cat, akost_str):
     sub = "OSTATNÉ"
     rho = 0.0
     if not akost_str: return sub, rho
-    match = re.search(r"\d\.\d{2,4}", akost_str)
-    wnr_val = round(float(match.group()), 4) if match else 0.0
-    
-    if cat == "OCEĽ":
-        rho = 7900.0
-        if any(x in akost_str for x in ["1.3505", "1.35"]): sub = "TOOL"
-        elif any(x in akost_str for x in ["1.0619", "1.07", "1.11", "1.12"]): sub = "UNALL"
-        elif "1.39" in akost_str: sub = "ALLOYED"
-        elif "1.29" in akost_str: sub = "TOOL"
-        elif 1.0000 <= wnr_val <= 1.1499: sub = "UNALL"
-        elif 1.1500 <= wnr_val <= 1.6499: sub = "LOWAL"
-        elif 1.6500 <= wnr_val <= 1.8999: sub = "ALLOYED"
-        elif (1.2000 <= wnr_val <= 1.3299) or (1.3500 <= wnr_val <= 1.3599): sub = "TOOL"
-        elif 1.3300 <= wnr_val <= 1.3899: sub = "HSS"
-    elif cat == "NEREZ":
-        rho = 8000.0
-        if any(x in akost_str for x in ["1.47", "1.48"]): sub = "STAIN-SPEC"
-        elif any(x in akost_str for x in ["1.4308", "1.4408"]): sub = "AUST"
-        elif "1.4462" in akost_str: sub = "DUPX"
-        elif 1.4300 <= wnr_val <= 1.4599: sub = "AUST"
-        elif "1.41" in akost_str: sub = "MART"
-        elif "1.44" in akost_str: sub = "DUPX"
-        elif "1.40" in akost_str: sub = "FERR"
-        elif 1.4600 <= wnr_val <= 1.4999: sub = "STAIN-SPEC"
-    elif cat == "FAREBNÉ KOVY":
-        if 2.0000 <= wnr_val <= 2.0199: sub, rho = "CU", 9000.0
-        elif 2.0200 <= wnr_val <= 2.0899: sub, rho = "BRASS", 9000.0
-        elif 2.0900 <= wnr_val <= 2.3999: sub, rho = "BRONZE", 9000.0
-        elif 3.0000 <= wnr_val <= 3.5999: sub, rho = "ALU", 2900.0
-        elif "3.7" in akost_str: sub, rho = "TI", 4500.0
-        elif "2.4" in akost_str: sub, rho = "NI-SPEC", 8500.0
-    elif cat == "PLAST":
-        if "PEEK" in akost_str: sub, rho = "PEEK", 1400.0
-        elif "PET-G" in akost_str or "PETG" in akost_str: sub, rho = "PET-G", 1270.0
-        elif "PMMA" in akost_str or "PLEXI" in akost_str or "AKRYLAT" in akost_str: sub, rho = "PMMA", 1200.0
-        elif "PC" in akost_str or "LEXAN" in akost_str: sub, rho = "PC", 1200.0
-        elif "PUR" in akost_str or "EBABOARD" in akost_str or "EBABLOCK" in akost_str: sub, rho = "PUR", 1200.0
-        elif "EPDM" in akost_str or "GUMA" in akost_str or "RUBBER" in akost_str: sub, rho = "RUBBER", 1150.0
-        elif "PVC" in akost_str: sub, rho = "PVC", 1400.0
-        elif "POM" in akost_str: sub, rho = "POM", 1500.0
-        elif "PET" in akost_str: sub, rho = "PET", 1700.0
-        elif "PA" in akost_str: sub, rho = "PA", 1200.0
-        elif "PP" in akost_str: sub, rho = "PP", 1000.0
-        elif "PE" in akost_str or "HDPE" in akost_str: sub, rho = "PE", 1000.0
-    elif cat == "LIATINA":
-        if "0.60" in akost_str: sub, rho = "CAST-GG", 7150.0
-        elif "0.70" in akost_str: sub, rho = "CAST-GGG", 7250.0
-        elif 0.8000 <= wnr_val <= 0.9699: sub, rho = "CAST-TEMP", 7400.0
-    return sub, rho
-
-subcategory, hustota_auto = get_mecasys_logic(material_vyber, relevantna_akost)
-hustota = hustota_auto
-if hustota_auto == 0.0:
-    with col_m1:
-        hustota = st.number_input("Manuálna hustota (kg/m³)", min_value=0.0, value=7850.0, key="manual_rho")
-
-# --- 8. VÝPOČET GEOMETRIE ---
-if tvar_item == "KR":
-    plocha_prierezu = (math.pi * (d**2)) / 4
-    povrch_celkovy_mm2 = (2 * plocha_prierezu) + (math.pi * d * l)
-    hmotnost_kusu = (plocha_prierezu * l * hustota) / 1e9
-else:
-    plocha_prierezu = s * v
-    povrch_celkovy_mm2 = 2 * (s * v + s * d + v * d)
-    hmotnost_kusu = (s * v * d * hustota) / 1e9
-
-plocha_prierez_dm2 = povrch_celkovy_mm2 / 10000 
-hmotnost_celkom = hmotnost_kusu * pocet_kusov
-
-# --- 9. KOOPERÁCIA A FINÁLNE CENY ---
-st.write("---")
-rk1, rk2, rk3, rk4, rk5, rk6, rk7 = st.columns([0.8, 1.5, 1.5, 1.2, 1.2, 1.2, 1.5])
-
-with rk1:
-    je_kooperacia = st.checkbox("Koop?", value=False, key="koop_main_checkbox")
-
-cena_kooperacia = 0.0
-
-if je_kooperacia:
-    zoznam_vsetkych_mat_koop = sorted(df_koop['material'].dropna().unique()) if 'material' in df_koop.columns else []
-    
-    try: default_idx = zoznam_vsetkych_mat_koop.index(material_vyber)
-    except ValueError: default_idx = 0
-        
-    with rk3:
-        vybrany_mat_koop = st.selectbox("Mat. koop.", zoznam_vsetkych_mat_koop, index=default_idx, key="mat_k")
-    
-    with rk2:
-        df_f_koop = df_koop[df_koop['material'] == vybrany_mat_koop]
-        mozne_operacie = sorted(df_f_koop['druh'].dropna().unique()) if 'druh' in df_f_koop.columns else []
-        vybrany_druh = st.selectbox("Druh koop.", mozne_operacie, key="druh_k")
-    
-    filter_koop_row = df_koop[(df_koop['druh'] == vybrany_druh) & (df_koop['material'] == vybrany_mat_koop)]
-    
-    if not filter_koop_row.empty:
-        riadok_koop = filter_koop_row.iloc[0]
-        tarifa = float(riadok_koop.get('tarifa', 0))
-        jednotka = str(riadok_koop.get('jednotka', '')).strip().lower()
-        min_obj = float(riadok_koop.get('minimum', 0))
-
-        vyp_cena = tarifa * (hmotnost_kusu if jednotka == "kg" else plocha_prierez_dm2 if jednotka == "dm2" else 1)
-        cena_kooperacia = max(vyp_cena, min_obj / pocet_kusov)
-    else:
-        st.warning("Pre zvolenú kombináciu druhu a materiálu kooperácie neboli nájdené ceny.")
-else:
-    with rk2: st.text_input("Druh koop.", "-", disabled=True, key="disabled_druh_koop")
-    with rk3: st.text_input("Mat. koop.", "-", disabled=True, key="disabled_mat_koop")
-
-vstupne_naklady = cena_mat_kus + cena_kooperacia
-
-# Zobrazenie cien a nákladov v metrikách
-with rk4: st.metric("Cena/bm", f"{cena_polotovaru:.2f} €")
-with rk5: st.metric("Mat./kus", f"{cena_mat_kus:.3f} €")
-with rk6: st.metric("Koop./kus", f"{cena_kooperacia:.3f} €")
-with rk7: st.metric("VSTUPNÉ NÁKLADY", f"{vstupne_naklady:.3f} €", delta=f"{hmotnost_kusu:.2f} kg", delta_color="off")
-
-# --- SPODNÝ INFORMAČNÝ PANEL (GEOMETRIA) ---
-st.markdown(
-    f"""
-    <div style="background-color: #f1f3f6; padding: 10px; border-radius: 5px; font-size: 0.85em; color: #555;">
-    <strong>Použitá akosť:</strong> {relevantna_akost} | <strong>Subcategory:</strong> {subcategory} | <strong>Hustota:</strong> {hustota:.0f} kg/m³ | 
-    <strong>Plocha prierezu:</strong> {plocha_prierezu:.2f} mm² | <strong>Hmotnosť:</strong> {hmotnost_kusu:.3f} kg | <strong>Povrch:</strong> {plocha_prierez_dm2:.3f} dm²
-    </div>
-    """, unsafe_allow_html=True
-)
-
-# --- DOPLNENÁ LOGIKA PRE KOSÍK (PRIDÁVANIE A ZOBRAZENIE) ---
-st.write("")
-col_btn1, col_btn2 = st.columns([2, 8])
-
-with col_btn1:
-    if st.button("🛒 Pridať item do košíka", type="primary", use_container_width=True):
-        if item.strip() == "":
-            st.warning("Zadaj názov ITEMu pred pridaním do košíka.")
-        else:
-            # Vytvoríme záznam o aktuálnej položke
-            nova_polozka = {
-                "ITEM": item,
-                "Počet kusov": pocet_kusov,
-                "Materiál": material_vyber,
-                "Akosť": relevantna_akost,
-                "Hmotnosť (kg/ks)": round(hmotnost_kusu, 3),
-                "Mat. / kus (€)": round(cena_mat_kus, 3),
-                "Koop. / kus (€)": round(cena_kooperacia, 3),
-                "Vstupné náklady (€/ks)": round(vstupne_naklady, 3),
-                "Celkom za položku (€)": round(vstupne_naklady * pocet_kusov, 2)
-            }
-            st.session_state.kosik.append(nova_polozka)
-            st.success(f"Položka '{item}' bola úspešne pridaná do ponuky!")
-            st.rerun()
-
-# Ak košík obsahuje položky, vykreslíme tabuľku na spodku aplikácie
-if st.session_state.kosik:
-    st.write("---")
-    st.subheader(f"📋 Aktuálny zoznam položiek v ponuke (Počet: {len(st.session_state.kosik)})")
-    
-    # Prevedieme košík na DataFrame, aby sa pekne zobrazil v tabuľke
-    df_kosik = pd.DataFrame(st.session_state.kosik)
-    st.dataframe(df_kosik, use_container_width=True, hide_index=True)
-    
-    # Rýchly výpočet celkovej sumy ponuky
-    celkova_suma = df_kosik["Celkom za položku (€)"].sum()
-    
-    col_sum1, col_sum2 = st.columns([6, 2])
-    with col_sum2:
-        st.metric("CELKOVÁ CENA PONUKY", f"{celkova_suma:.2f} €")
-        if st.button("🗑️ Vymazať celý košík", type="secondary", use_container_width=True):
-            st.session_state.kosik = []
-            st.rerun()
+    match = re.
