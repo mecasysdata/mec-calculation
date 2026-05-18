@@ -350,7 +350,7 @@ st.markdown(
 # --- 10. MEC AI COMPACT DASHBOARD (Všetko v jednom riadku podľa dohody) ---
 # --- 10. MEC AI COMPACT DASHBOARD ---
 st.divider()
-st.subheader("🤖 Predikčné modely & Schválenie (MEC AI)")
+st.subheader("🤖MEC AI")
 
 # Definícia fixných zástupných hodnôt podľa typu položky
 if tvar_item == "KR":
