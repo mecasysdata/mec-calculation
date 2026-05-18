@@ -1,3 +1,9 @@
+import os
+os.system("pip install reportlab==4.1.0")
+
+import streamlit as st
+import pandas as pd
+# ... tvoje ostatné importy vrátane reportlab už prebehnú úspešne
 import streamlit as st
 import pandas as pd
 import requests
