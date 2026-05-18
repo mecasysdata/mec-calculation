@@ -110,9 +110,9 @@ col5, col6, col7, col8, col9, col10, col11 = st.columns(7)
 with col5: 
     item = st.text_input("ITEM", key="item_input")
 
-# --- DETEKCIA ZMENY AKTUÁLNEHO ITEMU ---
-if item != st.session_state.stary_item:
-    if st.session_state.stary_item != "":
+# --- MINIMÁLNA ÚPRAVA: DETEKCIA ZMENY AKTUÁLNEHO ITEMU (Maže len ak sa text naozaj líši) ---
+if "stary_item" in st.session_state and item != st.session_state.stary_item:
+    if st.session_state.stary_item != "" and item.strip() != "":
         # Užívateľ prepísal ITEM -> úplný reset všetkých polí od ITEM nadol
         st.session_state.aktualny_pocet_kusov = 1
         st.session_state.stary_item = item
@@ -131,12 +131,13 @@ if item != st.session_state.stary_item:
         st.rerun()
     else:
         st.session_state.stary_item = item
-else:
-    pass
+
+if item.strip() != "":
+    st.session_state.stary_item = item
 
 with col6: 
     # Počet kusov načítava hodnotu dynamicky, aby sa dal vymazať nezávisle od reštartu
-    predvoleny_pocet = st.session_state.aktualny_pocet_kusov
+    predvoleny_pocet = st.session_state.get("aktualny_pocet_kusov", 1)
     pocet_kusov = st.number_input("Počet kusov", min_value=1, value=int(predvoleny_pocet), key="pocet_input")
     st.session_state.aktualny_pocet_kusov = pocet_kusov
 
@@ -454,16 +455,18 @@ if st.session_state.kosik:
     with col_sum2:
         st.metric("CELKOVÁ CENA PONUKY", f"{celkova_suma:.2f} €")
 
-# TENTO PANEL AKCIÍ JE TERAZ EXTERNÝ – ZOBRAZÍ SA VŽDY, KEĎ JE V KOŠÍKU TOVAR
-if st.session_state.kosik:
-    st.write("") 
-    st.write("### ⚙️ Akcie s cenovou ponukou")
-    
-    # Rozdelenie na 3 stĺpce vedľa seba
-    col_pdf, col_save, col_reset = st.columns(3)
-    
-    # 1. STĹPEC: Generovanie podrobného PDF
-    with col_pdf:
+# MINIMÁLNA ÚPRAVA: PANEL AKCIÍ – Tlačidlo Resetu sa zobrazuje vždy na spodu pre pohodlnú novú kalkuláciu
+st.write("") 
+st.write("### ⚙️ Akcie s cenovou ponukou")
+
+# Rozdelenie na 3 stĺpce vedľa seba
+col_pdf, col_save, col_reset = st.columns(3)
+
+# 1. STĹPEC: Generovanie podrobného PDF
+with col_pdf:
+    if not st.session_state.kosik:
+        st.info("🛒 Pre stiahnutie PDF pridajte položky do košíka.")
+    else:
         try:
             import unicodedata
             from fpdf import FPDF
@@ -503,7 +506,6 @@ if st.session_state.kosik:
                 pdf.ln(4)
                 
                 # Definícia stĺpcov pre Landscape orientáciu (Celková šírka cca 275 mm)
-                # ITEM, Material, Akost, Rozmery, Pocet ks, Mat/ks, Koop/ks, Vst. nakl, Cena/ks, Spolu
                 pdf.set_font("Helvetica", "B", 8)
                 pdf.cell(25, 7, "ITEM", border=1)
                 pdf.cell(30, 7, "Material", border=1)
@@ -545,8 +547,11 @@ if st.session_state.kosik:
         except Exception as pdf_err:
             st.error(f"Nepodarilo sa pripraviť PDF modul: {pdf_err}")
 
-    # 2. STĹPEC: Uloženie do Google Sheetu
-    with col_save:
+# 2. STĹPEC: Uloženie do Google Sheetu
+with col_save:
+    if not st.session_state.kosik:
+        st.info("💾 Pre uloženie naplňte košík.")
+    else:
         if st.button("💾 2. Uložiť a Uzatvoriť ponuku", type="primary", use_container_width=True):
             if not ponuka.strip():
                 st.error("❌ Prosím, zadaj 'Označenie CP' pred uložením ponuky!")
@@ -613,20 +618,20 @@ if st.session_state.kosik:
                     except Exception as e:
                         st.error(f"❌ Nepodarilo sa nadviazať spojenie: {e}")
 
-    # 3. STĹPEC: NEKOMPROMISNÝ RESET A VYČISTENIE CELÉHO PREHLIADAČA
-    with col_reset:
-        if st.button("🆕 Založiť novú cenovú ponuku", type="secondary", use_container_width=True):
-            with st.spinner("⏳ Čistím prostredie a nulujem všetky formuláre..."):
-                # 1. Úplne vymažeme session state zo strany Pythonu
-                for kluc in list(st.session_state.keys()):
-                    del st.session_state[kluc]
-                
-                # 2. Nastavíme čisté predvolené stavy, aby nevznikla chyba pri štarte
-                st.session_state.kosik = []
-                st.session_state.stary_item = ""
-                st.session_state.aktualny_pocet_kusov = 1
-                st.session_state.cas_potvrdeny = False
-                st.session_state.cena_potvrdena = False
-                
-                # 3. Tvrdý reštart Streamlitu prinúti vymazať aj cache HTML formulárov v prehliadači
-                st.rerun()
+# 3. STĹPEC: NEKOMPROMISNÝ RESET A VYČISTENIE CELÉHO PREHLIADAČA
+with col_reset:
+    if st.button("🆕 Založiť novú cenovú ponuku", type="secondary", use_container_width=True):
+        with st.spinner("⏳ Čistím prostredie a nulujem všetky formuláre..."):
+            # 1. Úplne vymažeme session state zo strany Pythonu
+            for kluc in list(st.session_state.keys()):
+                del st.session_state[kluc]
+            
+            # 2. Nastavíme čisté predvolené stavy, aby nevznikla chyba pri štarte
+            st.session_state.kosik = []
+            st.session_state.stary_item = ""
+            st.session_state.aktualny_pocet_kusov = 1
+            st.session_state.cas_potvrdeny = False
+            st.session_state.cena_potvrdena = False
+            
+            # 3. Tvrdý reštart Streamlitu prinúti vymazať aj cache HTML formulárov v prehliadači
+            st.rerun()
