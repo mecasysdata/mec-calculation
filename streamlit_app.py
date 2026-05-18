@@ -46,6 +46,7 @@ df_koop = load_koop_data(sheet_koop_url)
 # --- 3. RIADOK S ATRIBÚTMI (Zákazník) ---
 col1, col2, col3, col4 = st.columns(4)
 with col1:
+    # OPRAVENÉ: Použitie datetime.date.today() správne podľa vášho importu
     datum = st.date_input("Dátum", datetime.date.today())
 with col2:
     ponuka = st.text_input("Označenie CP")
@@ -73,7 +74,6 @@ else:
 st.divider()
 # --- 5. RIADOK: POLOŽKA (ITEM) S LOGIKOU RESETU ---
 
-# Inicializácia session_state pre držanie hodnôt, ak ešte neexistujú
 if "stary_item" not in st.session_state:
     st.session_state.stary_item = ""
 if "pocet_kusov" not in st.session_state:
@@ -94,11 +94,8 @@ if "v_rozmer" not in st.session_state:
 col5, col6, col7, col8, col9, col10, col11, col12 = st.columns(8)
 
 with col5:
-    # Textový vstup pre ITEM
     aktualny_item = st.text_input("ITEM", value=st.session_state.stary_item, key="item_input")
 
-# --- KLÚČOVÁ LOGIKA PREMAZÁVANIA ---
-# Ak používateľ zmenil ITEM (a nie je prázdny), resetujeme ostatné polia v session_state
 if aktualny_item != st.session_state.stary_item:
     st.session_state.stary_item = aktualny_item
     st.session_state.pocet_kusov = 1
@@ -108,16 +105,13 @@ if aktualny_item != st.session_state.stary_item:
     st.session_state.l_rozmer = 0.0
     st.session_state.s_rozmer = 0.0
     st.session_state.v_rozmer = 0.0
-    # Rýchly reštart skriptu, aby sa hneď aplikovali vymazané hodnoty do vizuálnych prvkov
     st.rerun()
 
-# --- Vykreslenie prvkov s naviazaním na session_state ---
 with col6:
     pocet_kusov = st.number_input("Počet kusov", min_value=1, value=st.session_state.pocet_kusov, key="pocet_input")
     st.session_state.pocet_kusov = pocet_kusov
 
 with col7:
-    # Nájdeme index aktuálnej náročnosti, aby selectbox správne zobrazil predvolenú hodnotu
     moznosti_narocnosti = [1, 2, 3, 4, 5]
     idx_narocnost = moznosti_narocnosti.index(st.session_state.narocnost)
     narocnost = st.selectbox("Náročnosť", options=moznosti_narocnosti, index=idx_narocnost, key="narocnost_input")
@@ -129,7 +123,6 @@ with col8:
     tvar_item = st.selectbox("Tvar položky", options=moznosti_tvarov, index=idx_tvar, key="tvar_input")
     st.session_state.tvar_item = tvar_item
 
-# Dynamické rozmery podľa tvaru
 if tvar_item == "KR":
     with col9:
         d = st.number_input("D(mm)", min_value=0.0, format="%.1f", value=st.session_state.d_rozmer, key="d_kr")
@@ -174,13 +167,10 @@ if manual_akost_check:
     zoznam_na_vyber = ["+ Pridať nový/iný polotovar"]
 else:
     df_relevant = df_mat[(df_mat['material'] == material_vyber) & (df_mat['akost'].astype(str).isin(akost_vyber_list))].copy()
-    
     if tvar_item == "KR":
         mask = df_relevant['názov'].str.contains('KR|6HR|TR', case=False, na=False)
         df_relevant = df_relevant[mask]
-    else:
-        pass
-
+    
     if not df_relevant.empty:
         df_relevant['sort_key'] = df_relevant.apply(lambda r: get_sorted_dims(r['rozmer1'], r['rozmer2'], r['rozmer3']), axis=1)
         df_relevant = df_relevant.sort_values(by='sort_key')
@@ -253,38 +243,18 @@ def get_mecasys_logic(cat, akost_str):
         elif "3.7" in akost_str: sub, rho = "TI", 4500.0
         elif "2.4" in akost_str: sub, rho = "NI-SPEC", 8500.0
     elif cat == "PLAST":
-        # 1. Najšpecifickejšie (PEEK, PET-G, PMMA)
-        if "PEEK" in akost_str: 
-            sub, rho = "PEEK", 1400.0
-        elif "PET-G" in akost_str or "PETG" in akost_str:
-            sub, rho = "PET-G", 1270.0
-        elif "PMMA" in akost_str or "PLEXI" in akost_str or "AKRYLAT" in akost_str:
-            sub, rho = "PMMA", 1200.0
-            
-        # 2. Skupiny s viacerými názvami
-        elif "PC" in akost_str or "LEXAN" in akost_str:
-            sub, rho = "PC", 1200.0
-        elif "PUR" in akost_str or "EBABOARD" in akost_str or "EBABLOCK" in akost_str:
-            sub, rho = "PUR", 1200.0 # hustota podľa typu polyuretánu
-        elif "EPDM" in akost_str or "GUMA" in akost_str or "RUBBER" in akost_str:
-            sub, rho = "RUBBER", 1150.0
-        elif "PVC" in akost_str:
-            sub, rho = "PVC", 1400.0
-            
-        # 3. Štandardné plasty
-        elif "POM" in akost_str:
-            sub, rho = "POM", 1500.0
-        elif "PET" in akost_str: # PET zachytí zvyšné PET (nie PET-G)
-            sub, rho = "PET", 1700.0
-        elif "PA" in akost_str:
-            sub, rho = "PA", 1200.0
-        elif "PP" in akost_str:
-            sub, rho = "PP", 1000.0
-            
-        # 4. Posledný musí byť PE (kvôli PEEK)
-        elif "PE" in akost_str or "HDPE" in akost_str:
-            sub, rho = "PE", 1000.0
-  
+        if "PEEK" in akost_str: sub, rho = "PEEK", 1400.0
+        elif "PET-G" in akost_str or "PETG" in akost_str: sub, rho = "PET-G", 1270.0
+        elif "PMMA" in akost_str or "PLEXI" in akost_str or "AKRYLAT" in akost_str: sub, rho = "PMMA", 1200.0
+        elif "PC" in akost_str or "LEXAN" in akost_str: sub, rho = "PC", 1200.0
+        elif "PUR" in akost_str or "EBABOARD" in akost_str or "EBABLOCK" in akost_str: sub, rho = "PUR", 1200.0
+        elif "EPDM" in akost_str or "GUMA" in akost_str or "RUBBER" in akost_str: sub, rho = "RUBBER", 1150.0
+        elif "PVC" in akost_str: sub, rho = "PVC", 1400.0
+        elif "POM" in akost_str: sub, rho = "POM", 1500.0
+        elif "PET" in akost_str: sub, rho = "PET", 1700.0
+        elif "PA" in akost_str: sub, rho = "PA", 1200.0
+        elif "PP" in akost_str: sub, rho = "PP", 1000.0
+        elif "PE" in akost_str or "HDPE" in akost_str: sub, rho = "PE", 1000.0
     elif cat == "LIATINA":
         if "0.60" in akost_str: sub, rho = "CAST-GG", 7150.0
         elif "0.70" in akost_str: sub, rho = "CAST-GGG", 7250.0
@@ -296,41 +266,29 @@ hustota = hustota_auto
 if hustota_auto == 0.0:
     hustota = st.number_input("Manuálna hustota (kg/m³)", min_value=0.0, key="manual_rho")
 
-# --- 8. VÝPOČET GEOMETRIE A PRÍPRAVA PRE RF MODELY ---
-kr1_predikovany = 0.0   # Predikovaný výrobný čas (KR)
-kr2_predikovany = 0.0   # Predikovaná cena komponentu (KR)
-stv1_predikovany = 0.0  # Predikovaný výrobný čas (STV)
-stv2_predikovany = 0.0  # Predikovaná cena komponentu (STV)
+# --- 8. VÝPOČET GEOMETRIE ---
+kr1_predikovany = 0.0   
+kr2_predikovany = 0.0   
+stv1_predikovany = 0.0  
+stv2_predikovany = 0.0  
 
 if tvar_item == "KR":
     plocha_prierezu = (math.pi * (d**2)) / 4
-    povrch_celkovy_mm2 = (2 * plocha_prierezu) + (math.pi * d * l) # Opravil som '1' na 'l' z tvojho pôvodného kódu, ak tam patrí dĺžka
-    hmotnost_kusu = (plocha_prierezu * l * hustota) / 1e9          # Opravil som '1' na 'l' z tvojho pôvodného kódu
-    
-    # 🔮 TU DNES ZAPOJÍŠ SVOJE RF MODELY PRE KR:
-    # kr1_predikovany = float(model_rf_kr_cas.predict(...)[0])
-    # kr2_predikovany = float(model_rf_kr_cena.predict(...)[0])
-    
-    # Pre testovacie účely tam môžeš hodiť fixné čísla, napr:
+    povrch_celkovy_mm2 = (2 * plocha_prierezu) + (math.pi * d * l) 
+    hmotnost_kusu = (plocha_prierezu * l * hustota) / 1e9          
     kr1_predikovany = 12.5
     kr2_predikovany = 35.0
-
 else:
     plocha_prierezu = s * v
     povrch_celkovy_mm2 = 2 * (s * v + s * d + v * d)
     hmotnost_kusu = (s * v * d * hustota) / 1e9
-    
-    # 🔮 TU DNES ZAPOJÍŠ SVOJE RF MODELY PRE STV:
-    # stv1_predikovany = float(model_rf_stv_cas.predict(...)[0])
-    # stv2_predikovany = float(model_rf_stv_cena.predict(...)[0])
-    
-    # Pre testovacie účely:
     stv1_predikovany = 22.0
     stv2_predikovany = 65.0
 
 plocha_prierez_dm2 = povrch_celkovy_mm2 / 10000 
 hmotnost_celkom = hmotnost_kusu * pocet_kusov
-# --- 9. KOOPERÁCIA A FINÁLNE CENY (AKTUALIZOVANÁ LOGIKA FILTROVANIA) ---
+
+# --- 9. KOOPERÁCIA A FINÁLNE CENY ---
 st.write("---")
 rk1, rk2, rk3, rk4, rk5, rk6, rk7 = st.columns([0.8, 1.5, 1.5, 1.2, 1.2, 1.2, 1.5])
 
@@ -340,23 +298,14 @@ with rk1:
 cena_kooperacia = 0.0
 if je_kooperacia:
     with rk3:
-        # 1. Získame unikátne materiály z cenníka kooperácií
         zoznam_vsetkych_mat_koop = sorted(df_koop['material'].unique())
-        
-        # 2. Skúsime nájsť index materiálu, ktorý bol vybraný hore v sekcii Komponent
-        try:
-            default_idx = zoznam_vsetkych_mat_koop.index(material_vyber)
-        except ValueError:
-            default_idx = 0 # Ak sa nenašiel, dáme prvý v zozname
-            
+        try: default_idx = zoznam_vsetkych_mat_koop.index(material_vyber)
+        except ValueError: default_idx = 0
         vybrany_mat_koop = st.selectbox("Mat. koop.", zoznam_vsetkych_mat_koop, index=default_idx, key="mat_k")
-    
     with rk2:
-        # 3. Vyfiltrujeme operácie (druh) len pre tento konkrétny vybraný materiál koop
         mozne_operacie = sorted(df_koop[df_koop['material'] == vybrany_mat_koop]['druh'].unique())
         vybrany_druh = st.selectbox("Druh koop.", mozne_operacie, key="druh_k")
     
-    # Doťahovanie údajov z riadku
     riadok_koop = df_koop[(df_koop['druh'] == vybrany_druh) & (df_koop['material'] == vybrany_mat_koop)].iloc[0]
     tarifa = float(riadok_koop['tarifa'])
     jednotka = str(riadok_koop['jednotka']).strip().lower()
@@ -370,15 +319,12 @@ else:
 
 vstupne_naklady = cena_mat_kus + cena_kooperacia
 
-# Zobrazenie cien a nákladov v metrikách
 with rk4: st.metric("Cena/bm", f"{cena_polotovaru:.2f} €")
 with rk5: st.metric("Mat./kus", f"{cena_mat_kus:.3f} €")
 with rk6: st.metric("Koop./kus", f"{cena_kooperacia:.3f} €")
 with rk7: st.metric("VSTUPNÉ NÁKLADY", f"{vstupne_naklady:.3f} €", delta=f"{hmotnost_kusu:.2f} kg", delta_color="off")
 
-# --- NOVÝ SPODNÝ INFORMAČNÝ PANEL S EDITÁCIOU PREDIKCIÍ VEDĽA SEBA ---
-
-# Inicializácia perzistentnej pamäte v session_state pre ručné zásahy
+# --- SPODNÝ PANEL S EDITÁCIOU PREDIKCIÍ ---
 if "schvaleny_cas" not in st.session_state:
     st.session_state.schvaleny_cas = None
 if "schvalena_cena" not in st.session_state:
@@ -414,16 +360,12 @@ with st.container():
         """, unsafe_allow_html=True)
         
     with col_inf2:
-        # Jeden čistý checkbox bez otravných emoji štvorčekov
         model_ok = st.checkbox("Potvrdzujem správnosť hodnôt z AI modelu", value=True, key="potvrdenie_modelu")
-        
         col_cas, col_cena = st.columns(2)
         
-        # --- FÁZA 1: URČENIE VÝROBNÉHO ČASU (MODEL 1) ---
         if model_ok:
             finalny_cas = kr1_predikovany if tvar_item == "KR" else stv1_predikovany
-            with col_cas:
-                st.number_input("Výrobný čas (min)", value=finalny_cas, disabled=True, key="dis_cas")
+            with col_cas: st.number_input("Výrobný čas (min)", value=finalny_cas, disabled=True, key="dis_cas")
         else:
             if st.session_state.schvaleny_cas is None:
                 st.session_state.schvaleny_cas = kr1_predikovany if tvar_item == "KR" else stv1_predikovany
@@ -432,26 +374,17 @@ with st.container():
                 finalny_cas = st.number_input("Upraviť výrobný čas (min)", min_value=0.0, value=st.session_state.schvaleny_cas, format="%.2f", key="en_cas")
                 if finalny_cas != st.session_state.schvaleny_cas:
                     st.session_state.schvaleny_cas = finalny_cas
-                    # Resetujeme cenu, aby ju Model 2 v zápätí prepočítal z nového času
                     st.session_state.schvalena_cena = None 
                     st.rerun()
 
-        # --- FÁZA 2: DYNAMICKÉ SPUSTENIE MODELU 2 PRE CENU VZHĽADOM NA ČAS ---
         if tvar_item == "KR":
-            # 🔮 TU DNES ZAPOJÍŠ SVOJ REÁLNY RF MODEL 2 PRE CENU (KR)
-            # Vstupom do predikcie bude premenná 'finalny_cas' (či už z modelu 1 alebo tvoj prepísaný)
-            # cena_z_modelu2 = float(model_rf_kr_cena.predict([[d, l, hustota, narocnost, finalny_cas]])[0])
-            cena_z_modelu2 = 35.0 + (finalny_cas * 1.5)  # Testovací dopočet, kým zapojíš model
+            cena_z_modelu2 = 35.0 + (finalny_cas * 1.5)  
         else:
-            # 🔮 TU DNES ZAPOJÍŠ SVOJ REÁLNY RF MODEL 2 PRE CENU (STV)
-            # cena_z_modelu2 = float(model_rf_stv_cena.predict([[d, s, v, hustota, narocnost, finalny_cas]])[0])
-            cena_z_modelu2 = 55.0 + (finalny_cas * 2.0)  # Testovací dopočet, kým zapojíš model
+            cena_z_modelu2 = 55.0 + (finalny_cas * 2.0)  
 
-        # --- FÁZA 3: URČENIE CENY KOMPONENTU (MODEL 2) ---
         if model_ok:
             finalna_cena = cena_z_modelu2
-            with col_cena:
-                st.number_input("Cena komponentu (€)", value=finalna_cena, disabled=True, key="dis_cena")
+            with col_cena: st.number_input("Cena komponentu (€)", value=finalna_cena, disabled=True, key="dis_cena")
         else:
             if st.session_state.schvalena_cena is None:
                 st.session_state.schvalena_cena = cena_z_modelu2
@@ -462,7 +395,6 @@ with st.container():
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Priradenie hodnôt do tvojich pôvodných premenných pre prípadný export/PDF mimo košíka
 if tvar_item == "KR":
     kr1, kr2 = finalny_cas, finalna_cena
     stv1, stv2 = 0.0, 0.0
@@ -470,10 +402,7 @@ else:
     stv1, stv2 = finalny_cas, finalna_cena
     kr1, kr2 = 0.0, 0.0
 
-
-# =====================================================================
 # --- KOŠÍK / UKLADANIE PRIDANÝCH POLOŽIEK ---
-# =====================================================================
 if "kosik_poloziek" not in st.session_state:
     st.session_state.kosik_poloziek = []
 
@@ -482,7 +411,6 @@ if st.button("➕ Pridať položku do ponuky (Uložiť hodnoty)", type="primary"
     if aktualny_item.strip() == "":
         st.error("❌ Nemôžeš uložiť položku bez zadania názvu ITEM!")
     else:
-        # Príprava čistého riadku, ktorý sa neskôr môže poslať do Sheets databázy
         nova_polozka = {
             "ITEM": aktualny_item,
             "Tvar": tvar_item,
@@ -493,11 +421,7 @@ if st.button("➕ Pridať položku do ponuky (Uložiť hodnoty)", type="primary"
             "Vstupné náklady (€)": round(vstupne_naklady, 2),
             "Rozmery": f"D:{d} | S:{s} | V:{v} | L:{l}"
         }
-        
-        # Uloženie do pamäte aktuálneho košíka
         st.session_state.kosik_poloziek.append(nova_polozka)
-        
-        # Kompletné premazanie formulára pre zadanie novej položky
         st.session_state.stary_item = ""
         st.session_state.pocet_kusov = 1
         st.session_state.d_rozmer = 0.0
@@ -506,149 +430,125 @@ if st.button("➕ Pridať položku do ponuky (Uložiť hodnoty)", type="primary"
         st.session_state.v_rozmer = 0.0
         if "schvaleny_cas" in st.session_state: del st.session_state.schvaleny_cas
         if "schvalena_cena" in st.session_state: del st.session_state.schvalena_cena
-        
         st.success(f"✔️ Položka '{aktualny_item}' bola úspešne pridaná do ponuky.")
         st.rerun()
 
-# Vykreslenie prehľadnej tabuľky košíka na spodku stránky
 if st.session_state.kosik_poloziek:
     st.divider()
     st.subheader("🛒 Prehľad pridaných položiek v aktuálnej ponuke")
     st.dataframe(st.session_state.kosik_poloziek, use_container_width=True)
 
-# --- EXPORT DO PDF (Upravené presne pre tvoj pôvodný košík) ---
-
 # =====================================================================
-# --- EXPORT DO PDF (Stabilný ReportLab s podporou slovenčiny) ---
+# --- OPRAVENÝ EXPORT DO PDF (Mimo vnoreného tlačidla) ---
 # =====================================================================
 if st.session_state.get("kosik_poloziek"):
     st.write("---")
     st.subheader("📄 Exportovať kompletnú ponuku do PDF")
 
-    col_pdf, _ = st.columns([1, 2])
+    # Funkcia na generovanie PDF dát (spustí sa len pri sťahovaní, čím chráni Streamlit pred pádom)
+    def generuj_pdf_data():
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer, 
+            pagesize=landscape(A4),
+            rightMargin=20, leftMargin=20, topMargin=20, bottomMargin=20
+        )
+        
+        try:
+            pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
+            pdfmetrics.registerFont(TTFont('DejaVu-Bold', 'DejaVuSans-Bold.ttf'))
+            font_normal = 'DejaVu'
+            font_bold = 'DejaVu-Bold'
+        except Exception:
+            font_normal = 'Helvetica'
+            font_bold = 'Helvetica-Bold'
+        
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle('CPTitle', parent=styles['Heading1'], fontName=font_bold, fontSize=18, leading=22, spaceAfter=15)
+        text_style = ParagraphStyle('CPText', parent=styles['Normal'], fontName=font_normal, fontSize=10, leading=14)
+        th_style = ParagraphStyle('CPTableHeader', fontName=font_bold, fontSize=9, leading=11, textColor=colors.whitesmoke, alignment=1)
+        td_style = ParagraphStyle('CPTableCell', fontName=font_normal, fontSize=8, leading=10)
+        
+        elements = []
+        elements.append(Paragraph("CENOVÁ PONUKA", title_style))
+        
+        c_ponuky = ponuka if ('ponuka' in locals() and ponuka) else datetime.datetime.now().strftime("%Y%m%d-%H%M")
+        # OPRAVENÉ: bezpečná konverzia dátumu
+        try: d_ponuky = datum.strftime("%d.%m.%Y")
+        except: d_ponuky = datetime.datetime.now().strftime("%d.%m.%Y")
+        
+        txt_zakaznik = zakaznik if 'zakaznik' in locals() else "Zákazník"
+        txt_krajina = krajina_hodnota if 'krajina_hodnota' in locals() else "SK"
+        
+        elements.append(Paragraph(f"<b>Číslo CP:</b> {c_ponuky}", text_style))
+        elements.append(Paragraph(f"<b>Dátum vystavenia:</b> {d_ponuky}", text_style))
+        elements.append(Paragraph(f"<b>Zákazník:</b> {txt_zakaznik} ({txt_krajina})", text_style))
+        elements.append(Spacer(1, 15))
+        
+        headers = ["Položka", "Tvar", "Rozmery", "Ks", "Hmotnosť", "Vst. náklady", "Cena/ks", "Cena spolu"]
+        table_data = [[Paragraph(h, th_style) for h in headers]]
+        
+        suma_vsetko = 0.0
+        for idx, p in enumerate(st.session_state.kosik_poloziek):
+            cena_kus = float(p.get("Finálna Cena (€)", 0.0))
+            pocet_ks = int(p.get("Počet kusov", 1))
+            spolu_polozka = cena_kus * pocet_ks
+            suma_vsetko += spolu_polozka
+            
+            item_name = p.get("ITEM", f"Pol. {idx+1}") or f"Pol. {idx+1}"
+            
+            row = [
+                Paragraph(str(item_name), td_style),
+                Paragraph(str(p.get('Tvar', '-')), td_style),
+                Paragraph(str(p.get('Rozmery', '-')), td_style),
+                Paragraph(str(pocet_ks), td_style),
+                Paragraph(f"{float(p.get('Hmotnosť (kg)', 0.0)):.3f} kg", td_style),
+                Paragraph(f"{float(p.get('Vstupné náklady (€)', 0.0)):.2f} €", td_style),
+                Paragraph(f"{cena_kus:.2f} €", td_style),
+                Paragraph(f"{spolu_polozka:.2f} €", td_style)
+            ]
+            table_data.append(row)
+        
+        total_style = ParagraphStyle('CPTotal', fontName=font_bold, fontSize=11, alignment=2)
+        table_data.append([
+            Paragraph("<b>CELKOVÁ CENA PONUKY SPOLU:</b>", total_style), "", "", "", "", "", "",
+            Paragraph(f"<b>{suma_vsetko:.2f} €</b>", total_style)
+        ])
+        
+        col_widths = [110, 40, 150, 30, 80, 80, 80, 110]
+        t = Table(table_data, colWidths=col_widths)
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -2), 0.5, colors.grey),
+            ('BOX', (0, 0), (-1, -2), 1, colors.HexColor('#2c3e50')),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#f8f9fa')),
+            ('SPAN', (0, -1), (6, -1)),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        
+        elements.append(t)
+        elements.append(Spacer(1, 20))
+        
+        foot_style = ParagraphStyle('CPFoot', fontName=font_normal, fontSize=8, textColor=colors.gray, alignment=1)
+        elements.append(Paragraph(f"Vygenerované systémom MECASYS - {datetime.datetime.now().strftime('%d.%m.%Y %H:%M')}", foot_style))
+        
+        doc.build(elements)
+        pdf_bytes = buffer.getvalue()
+        buffer.close()
+        return pdf_bytes
 
-    with col_pdf:
-        if st.button("Pripraviť finálne PDF"):
-            try:
-                # Vytvoríme pamäťový buffer pre PDF dáta
-                buffer = io.BytesIO()
-                
-                # Inicializácia dokumentu na šírku (Landscape A4) s okrajmi
-                doc = SimpleDocTemplate(
-                    buffer, 
-                    pagesize=landscape(A4),
-                    rightMargin=20, leftMargin=20, topMargin=20, bottomMargin=20
-                )
-                
-                # Registrácia systémového fontu DejaVuSans (štandard na Linux/Streamlit serveroch)
-                # Vďaka tomu budú všetky mäkčene ako š, ž, ť fungovať úplne automaticky.
-                try:
-                    pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
-                    pdfmetrics.registerFont(TTFont('DejaVu-Bold', 'DejaVuSans-Bold.ttf'))
-                    font_normal = 'DejaVu'
-                    font_bold = 'DejaVu-Bold'
-                except Exception:
-                    # Záložný font, ak by si testovala lokálne na Windows a nemala nainštalovaný DejaVu
-                    font_normal = 'Helvetica'
-                    font_bold = 'Helvetica-Bold'
-                
-                styles = getSampleStyleSheet()
-                
-                # Vlastné textové štýly
-                title_style = ParagraphStyle(
-                    'CPTitle', parent=styles['Heading1'], fontName=font_bold, fontSize=18, leading=22, spaceAfter=15
-                )
-                text_style = ParagraphStyle(
-                    'CPText', parent=styles['Normal'], fontName=font_normal, fontSize=10, leading=14
-                )
-                th_style = ParagraphStyle(
-                    'CPTableHeader', fontName=font_bold, fontSize=9, leading=11, textColor=colors.whitesmoke, alignment=1
-                )
-                td_style = ParagraphStyle(
-                    'CPTableCell', fontName=font_normal, fontSize=8, leading=10
-                )
-                
-                elements = []
-                
-                # Hlavička dokumentu
-                elements.append(Paragraph("CENOVÁ PONUKA", title_style))
-                
-                c_ponuky = ponuka if ('ponuka' in locals() and ponuka) else datetime.datetime.now().strftime("%Y%m%d-%H%M")
-                d_ponuky = datum.strftime("%d.%m.%Y") if 'datum' in locals() else datetime.datetime.now().strftime("%d.%m.%Y")
-                txt_zakaznik = zakaznik if 'zakaznik' in locals() else "Zákazník"
-                txt_krajina = krajina_hodnota if 'krajina_hodnota' in locals() else "SK"
-                
-                elements.append(Paragraph(f"<b>Číslo CP:</b> {c_ponuky}", text_style))
-                elements.append(Paragraph(f"<b>Dátum vystavenia:</b> {d_ponuky}", text_style))
-                elements.append(Paragraph(f"<b>Zákazník:</b> {txt_zakaznik} ({txt_krajina})", text_style))
-                elements.append(Spacer(1, 15))
-                
-                # Hlavička tabuľky (Slovenské názvy s diakritikou)
-                headers = ["Položka", "Tvar", "Rozmery", "Ks", "Hmotnosť", "Vst. náklady", "Cena/ks", "Cena spolu"]
-                table_data = [[Paragraph(h, th_style) for h in headers]]
-                
-                suma_vsetko = 0.0
-                for idx, p in enumerate(st.session_state.kosik_poloziek):
-                    cena_kus = float(p.get("Finálna Cena (€)", 0.0))
-                    pocet_ks = int(p.get("Počet kusov", 1))
-                    spolu_polozka = cena_kus * pocet_ks
-                    suma_vsetko += spolu_polozka
-                    
-                    item_name = p.get("ITEM", f"Pol. {idx+1}") or f"Pol. {idx+1}"
-                    
-                    row = [
-                        Paragraph(str(item_name), td_style),
-                        Paragraph(str(p.get('Tvar', '-')), td_style),
-                        Paragraph(str(p.get('Rozmery', '-')), td_style),
-                        Paragraph(str(pocet_ks), td_style),
-                        Paragraph(f"{float(p.get('Hmotnosť (kg)', 0.0)):.3f} kg", td_style),
-                        Paragraph(f"{float(p.get('Vstupné náklady (€)', 0.0)):.2f} €", td_style),
-                        Paragraph(f"{cena_kus:.2f} €", td_style),
-                        Paragraph(f"{spolu_polozka:.2f} €", td_style)
-                    ]
-                    table_data.append(row)
-                
-                # Spodný riadok s celkovou sumou
-                total_style = ParagraphStyle('CPTotal', fontName=font_bold, fontSize=11, alignment=2)
-                table_data.append([
-                    Paragraph("<b>CELKOVÁ CENA PONUKY SPOLU:</b>", total_style), "", "", "", "", "", "",
-                    Paragraph(f"<b>{suma_vsetko:.2f} €</b>", total_style)
-                ])
-                
-                # Nastavenie optimálnych šírok stĺpcov pre A4 Landscape (celkovo cca 750 bodov)
-                col_widths = [110, 40, 150, 30, 80, 80, 80, 110]
-                t = Table(table_data, colWidths=col_widths)
-                t.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')), # Moderná tmavosivá hlavička
-                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                    ('GRID', (0, 0), (-1, -2), 0.5, colors.grey),
-                    ('BOX', (0, 0), (-1, -2), 1, colors.HexColor('#2c3e50')),
-                    ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#f8f9fa')),
-                    ('SPAN', (0, -1), (6, -1)), # Zlúčenie buniek pre celkovú sumu
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-                    ('TOPPADDING', (0, 0), (-1, -1), 6),
-                ]))
-                
-                elements.append(t)
-                elements.append(Spacer(1, 20))
-                
-                # Pätička dokumentu
-                foot_style = ParagraphStyle('CPFoot', fontName=font_normal, fontSize=8, textColor=colors.gray, alignment=1)
-                elements.append(Paragraph(f"Vygenerované systémom MECASYS - {datetime.datetime.now().strftime('%d.%m.%Y %H:%M')}", foot_style))
-                
-                # Vygenerovanie výsledného súboru
-                doc.build(elements)
-                pdf_bytes = buffer.getvalue()
-                buffer.close()
-                
-                st.download_button(
-                    label="⬇️ Stiahnuť finálnu ponuku (PDF)",
-                    data=pdf_bytes,
-                    file_name=f"Ponuka_{txt_zakaznik}_{c_ponuky}.pdf",
-                    mime="application/pdf"
-                )
-                st.success("PDF ponuka je pripravená prostredníctvom ReportLab!")
+    # Definovanie názvu súboru pre stiahnutie
+    c_ponuky_file = ponuka if ponuka else datetime.datetime.now().strftime("%Y%m%d-%H%M")
+    txt_zakaznik_file = zakaznik if 'zakaznik' in locals() else "Zakaznik"
 
-            except Exception as e:
-                st.error(f"Chyba pri generovaní PDF: {e}")
+    # SAMOSTATNÉ TLAČIDLO PRE SŤAHOVANIE (Zabraňuje pádom aplikácie)
+    st.download_button(
+        label="⬇️ Stiahnuť finálnu ponuku (PDF)",
+        data=generuj_pdf_data(),
+        file_name=f"Ponuka_{txt_zakaznik_file}_{c_ponuky_file}.pdf",
+        mime="application/pdf",
+        use_container_width=True
+    )
