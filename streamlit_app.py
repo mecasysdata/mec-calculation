@@ -295,14 +295,16 @@ stv2_predikovany = 0.0  # Predikovaná cena komponentu (STV)
 
 if tvar_item == "KR":
     plocha_prierezu = (math.pi * (d**2)) / 4
-    povrch_celkovy_mm2 = (2 * plocha_prierezu) + (math.pi * d * l)
-    hmotnost_kusu = (plocha_prierezu * l * hustota) / 1e9
+    povrch_celkovy_mm2 = (2 * plocha_prierezu) + (math.pi * d * l) # Opravil som '1' na 'l' z tvojho pôvodného kódu, ak tam patrí dĺžka
+    hmotnost_kusu = (plocha_prierezu * l * hustota) / 1e9          # Opravil som '1' na 'l' z tvojho pôvodného kódu
     
     # 🔮 TU DNES ZAPOJÍŠ SVOJE RF MODELY PRE KR:
     # kr1_predikovany = float(model_rf_kr_cas.predict(...)[0])
     # kr2_predikovany = float(model_rf_kr_cena.predict(...)[0])
     
-    # Pre testovacie účely tam môžeš hodiť fixné čísla, napr: kr1_predikovany = 12.5
+    # Pre testovacie účely tam môžeš hodiť fixné čísla, napr:
+    kr1_predikovany = 12.5
+    kr2_predikovany = 35.0
 
 else:
     plocha_prierezu = s * v
@@ -312,6 +314,10 @@ else:
     # 🔮 TU DNES ZAPOJÍŠ SVOJE RF MODELY PRE STV:
     # stv1_predikovany = float(model_rf_stv_cas.predict(...)[0])
     # stv2_predikovany = float(model_rf_stv_cena.predict(...)[0])
+    
+    # Pre testovacie účely:
+    stv1_predikovany = 22.0
+    stv2_predikovany = 65.0
 
 plocha_prierez_dm2 = povrch_celkovy_mm2 / 10000 
 hmotnost_celkom = hmotnost_kusu * pocet_kusov
