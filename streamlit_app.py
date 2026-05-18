@@ -62,22 +62,83 @@ else:
     with col4: st.text_input("Krajina Zákazníka", value=krajina_hodnota, disabled=True)
 
 st.divider()
+# --- 5. RIADOK: POLOŽKA (ITEM) S LOGIKOU RESETU ---
 
-# --- 5. RIADOK: POLOŽKA (ITEM) ---
+# Inicializácia session_state pre držanie hodnôt, ak ešte neexistujú
+if "stary_item" not in st.session_state:
+    st.session_state.stary_item = ""
+if "pocet_kusov" not in st.session_state:
+    st.session_state.pocet_kusov = 1
+if "narocnost" not in st.session_state:
+    st.session_state.narocnost = 1
+if "tvar_item" not in st.session_state:
+    st.session_state.tvar_item = "STV"
+if "d_rozmer" not in st.session_state:
+    st.session_state.d_rozmer = 0.0
+if "l_rozmer" not in st.session_state:
+    st.session_state.l_rozmer = 0.0
+if "s_rozmer" not in st.session_state:
+    st.session_state.s_rozmer = 0.0
+if "v_rozmer" not in st.session_state:
+    st.session_state.v_rozmer = 0.0
+
 col5, col6, col7, col8, col9, col10, col11, col12 = st.columns(8)
-with col5: item = st.text_input("ITEM", key="item_input")
-with col6: pocet_kusov = st.number_input("Počet kusov", min_value=1, value=1, key="pocet_input")
-with col7: narocnost = st.selectbox("Náročnosť", options=[1, 2, 3, 4, 5], key="narocnost_input")
-with col8: tvar_item = st.selectbox("Tvar položky", options=["STV", "KR"], key="tvar_input")
 
+with col5:
+    # Textový vstup pre ITEM
+    aktualny_item = st.text_input("ITEM", value=st.session_state.stary_item, key="item_input")
+
+# --- KLÚČOVÁ LOGIKA PREMAZÁVANIA ---
+# Ak používateľ zmenil ITEM (a nie je prázdny), resetujeme ostatné polia v session_state
+if aktualny_item != st.session_state.stary_item:
+    st.session_state.stary_item = aktualny_item
+    st.session_state.pocet_kusov = 1
+    st.session_state.narocnost = 1
+    st.session_state.tvar_item = "STV"
+    st.session_state.d_rozmer = 0.0
+    st.session_state.l_rozmer = 0.0
+    st.session_state.s_rozmer = 0.0
+    st.session_state.v_rozmer = 0.0
+    # Rýchly reštart skriptu, aby sa hneď aplikovali vymazané hodnoty do vizuálnych prvkov
+    st.rerun()
+
+# --- Vykreslenie prvkov s naviazaním na session_state ---
+with col6:
+    pocet_kusov = st.number_input("Počet kusov", min_value=1, value=st.session_state.pocet_kusov, key="pocet_input")
+    st.session_state.pocet_kusov = pocet_kusov
+
+with col7:
+    # Nájdeme index aktuálnej náročnosti, aby selectbox správne zobrazil predvolenú hodnotu
+    moznosti_narocnosti = [1, 2, 3, 4, 5]
+    idx_narocnost = moznosti_narocnosti.index(st.session_state.narocnost)
+    narocnost = st.selectbox("Náročnosť", options=moznosti_narocnosti, index=idx_narocnost, key="narocnost_input")
+    st.session_state.narocnost = narocnost
+
+with col8:
+    moznosti_tvarov = ["STV", "KR"]
+    idx_tvar = moznosti_tvarov.index(st.session_state.tvar_item)
+    tvar_item = st.selectbox("Tvar položky", options=moznosti_tvarov, index=idx_tvar, key="tvar_input")
+    st.session_state.tvar_item = tvar_item
+
+# Dynamické rozmery podľa tvaru
 if tvar_item == "KR":
-    with col9: d = st.number_input("D(mm)", min_value=0.0, format="%.1f", key="d_kr")
-    with col10: l = st.number_input("L(mm)", min_value=0.0, format="%.1f", key="l_kr")
+    with col9:
+        d = st.number_input("D(mm)", min_value=0.0, format="%.1f", value=st.session_state.d_rozmer, key="d_kr")
+        st.session_state.d_rozmer = d
+    with col10:
+        l = st.number_input("L(mm)", min_value=0.0, format="%.1f", value=st.session_state.l_rozmer, key="l_kr")
+        st.session_state.l_rozmer = l
     s, v = 0.0, 0.0
 else:
-    with col9: d = st.number_input("D/P(mm)", min_value=0.0, format="%.1f", key="d_stv")
-    with col10: s = st.number_input("S(mm)", min_value=0.0, format="%.1f", key="s_stv")
-    with col11: v = st.number_input("V(mm)", min_value=0.0, format="%.1f", key="v_stv")
+    with col9:
+        d = st.number_input("D/P(mm)", min_value=0.0, format="%.1f", value=st.session_state.d_rozmer, key="d_stv")
+        st.session_state.d_rozmer = d
+    with col10:
+        s = st.number_input("S(mm)", min_value=0.0, format="%.1f", value=st.session_state.s_rozmer, key="s_stv")
+        st.session_state.s_rozmer = s
+    with col11:
+        v = st.number_input("V(mm)", min_value=0.0, format="%.1f", value=st.session_state.v_rozmer, key="v_stv")
+        st.session_state.v_rozmer = v
     l = 0.0
 
 st.divider()
