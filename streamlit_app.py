@@ -361,13 +361,48 @@ with rk5: st.metric("Mat./kus", f"{cena_mat_kus:.3f} €")
 with rk6: st.metric("Koop./kus", f"{cena_kooperacia:.3f} €")
 with rk7: st.metric("VSTUPNÉ NÁKLADY", f"{vstupne_naklady:.3f} €", delta=f"{hmotnost_kusu:.2f} kg", delta_color="off")
 
-# --- SPODNÝ INFORMAČNÝ PANEL (GEOMETRIA) ---
-st.markdown(
-    f"""
-    <div style="background-color: #f1f3f6; padding: 10px; border-radius: 5px; font-size: 0.85em; color: #555;">
-    <strong>Použitá akosť:</strong> {relevantna_akost} | <strong>Subcategory:</strong> {subcategory} | <strong>Hustota:</strong> {hustota:.0f} kg/m³ | 
-    <strong>Plocha prierezu:</strong> {plocha_prierezu:.2f} mm² | <strong>Hmotnosť:</strong> {hmotnost_kusu:.3f} kg | 
-    <strong>Povrch:</strong> {plocha_prierez_dm2:.3f} dm²
-    </div>
-    """, unsafe_allow_html=True
-)
+# --- NOVÝ SPODNÝ INFORMAČNÝ PANEL S EDITÁCIOU PREDIKCIÍ ---
+st.write("")
+# Vytvoríme sivý box pomocou HTML/CSS kontajneru v Streamlite
+with st.container():
+    st.markdown(
+        """
+        <style>
+        .sivy-panel {
+            background-color: #f1f3f6;
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 0.9em;
+            color: #333;
+            border-left: 5px solid #bdc3c7;
+        }
+        </style>
+        """, unsafe_allow_html=True
+    )
+    
+    # Spustíme div pre sivé pozadie
+    st.markdown('<div class="sivy-panel">', unsafe_allow_html=True)
+    
+    # Rozdelíme panel na dve časti: vľavo technické info, vpravo interaktívne overenie predikcií
+    col_inf1, col_inf2 = st.columns([5, 3])
+    
+    with col_inf1:
+        st.markdown(f"""
+        <strong>Použitá akosť:</strong> {relevantna_akost} &nbsp;|&nbsp; 
+        <strong>Subcategory:</strong> {subcategory} &nbsp;|&nbsp; 
+        <strong>Hustota:</strong> {hustota:.0f} kg/m³ <br>
+        <strong>Plocha prierezu:</strong> {plocha_prierezu:.2f} mm² &nbsp;|&nbsp; 
+        <strong>Hmotnosť:</strong> {hmotnost_kusu:.3f} kg &nbsp;|&nbsp; 
+        <strong>Povrch:</strong> {plocha_prierez_dm2:.3f} dm²
+        """, unsafe_allow_html=True)
+        
+    with col_inf2:
+        # Podľa zvoleného tvaru podhodíme užívateľovi na schválenie/prepísanie hodnoty z RF modelov
+        if tvar_item == "KR":
+            finalny_cas = st.number_input("Schváliť výrobný čas (min)", min_value=0.0, value=kr1_predikovany, format="%.2f", key="schvaleny_cas_kr")
+            finalna_cena = st.number_input("Schváliť cenu komponentu (€)", min_value=0.0, value=kr2_predikovany, format="%.2f", key="schvalena_cena_kr")
+        else:
+            finalny_cas = st.number_input("Schváliť výrobný čas (min)", min_value=0.0, value=stv1_predikovany, format="%.2f", key="schvaleny_cas_stv")
+            finalna_cena = st.number_input("Schváliť cenu komponentu (€)", min_value=0.0, value=stv2_predikovany, format="%.2f", key="schvalena_cena_stv")
+
+    st.markdown('</div>', unsafe_allow_html=True)
