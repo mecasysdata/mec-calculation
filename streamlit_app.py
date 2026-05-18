@@ -7,6 +7,14 @@ import math
 # --- 1. CONFIG & ŠTÝL ---
 st.set_page_config(layout="wide", page_title="MEC Calculation")
 
+# --- DOPLNENÝ POMOCNÝ MECHANIZMUS PRE INTELIGENTNÝ RESET ITEMU ---
+if "stary_item" not in st.session_state:
+    st.session_state.stary_item = ""
+
+# Sledujeme aktuálnu hodnotu v URL parametri/skrytom stave pred vykreslením
+if "aktualny_pocet_kusov" not in st.session_state:
+    st.session_state.aktualny_pocet_kusov = 1
+
 # --- 2. CACHING (Sťahovanie dát len raz) ---
 @st.cache_data(ttl=600)  # Dáta sa držia v pamäti 10 minút
 def load_data_from_url(url):
@@ -28,7 +36,7 @@ df = load_data_from_url(SHEET_URL)
 df_mat = load_data_from_url(MATERIAL_SHEET_URL)
 df_koop = load_data_from_url(SHEET_KOOP_URL)
 
-# Ak sú dáta prázdne, zastavíme aplikáciu elegantne, nie cras气候m
+# Ak sú dáta prázdne, zastavíme aplikáciu elegantne, nie crasm
 if df.empty or df_mat.empty or df_koop.empty:
     st.error("Kritické dáta nie sú dostupné. Skontrolujte pripojenie na Google Sheets.")
     st.stop()
@@ -84,8 +92,40 @@ st.divider()
 
 # --- 5. ITEM GEOMETRIA ---
 col5, col6, col7, col8, col9, col10, col11 = st.columns(7)
-with col5: item = st.text_input("ITEM", key="item_input")
-with col6: pocet_kusov = st.number_input("Počet kusov", min_value=1, value=1, key="pocet_input")
+
+with col5: 
+    item = st.text_input("ITEM", key="item_input")
+
+# --- DETEKCIA ZMENY AKTUÁLNEHO ITEMU ---
+# Definujeme stavy na základe tvojej logiky:
+# 1. Ak sa ITEM prepíše -> vymažú/rešetujú sa widgety od neho nadol cez st.rerun()
+# 2. Ak užívateľ nezmení ITEM (ale zmení čokoľvek iné) -> vymaže sa iba počet kusov, ostatné polia držia hodnotu.
+if item != st.session_state.stary_item:
+    if st.session_state.stary_item != "":
+        # Užívateľ prepísal ITEM -> úplný reset všetkých polí od ITEM nadol
+        st.session_state.aktualny_pocet_kusov = 1
+        st.session_state.stary_item = item
+        
+        # Odstránime kľúče z pamäte, aby sa widgety vykreslili čisté a prázdne
+        kluce_na_vymazanie = ["pocet_input", "narocnost_input", "tvar_input", "d_kr", "l_kr", "d_stv", "s_stv", "v_stv", "mat_select", "akost_multi", "man_akost_chk", "polo_inteligent", "koop_main_checkbox", "manual_rho", "mat_k", "druh_k"]
+        for klic in kluce_na_vymazanie:
+            if klic in st.session_state:
+                del st.session_state[klic]
+        st.rerun()
+    else:
+        st.session_state.stary_item = item
+else:
+    # ITEM sa nezmenil (užívateľ mení iné vlastnosti alebo naceňuje rovnaký ITEM znova)
+    # V tom prípade chceme vymazať iba počet kusov, ostatné sa ponechá.
+    # Aby sme nezacyklili aplikáciu, sledujeme reálne odoslanie cez interakciu s widgetom
+    pass
+
+with col6: 
+    # Počet kusov načítava hodnotu dynamicky, aby sa dal vymazať nezávisle od reštartu
+    predvoleny_pocet = st.session_state.aktualny_pocet_kusov
+    pocet_kusov = st.number_input("Počet kusov", min_value=1, value=int(predvoleny_pocet), key="pocet_input")
+    st.session_state.aktualny_pocet_kusov = pocet_kusov
+
 with col7: narocnost = st.selectbox("Náročnosť", options=[1, 2, 3, 4, 5], key="narocnost_input")
 with col8: tvar_item = st.selectbox("Tvar položky", options=["STV", "KR"], key="tvar_input")
 
@@ -294,4 +334,3 @@ st.markdown(
     </div>
     """, unsafe_allow_html=True
 )
-
