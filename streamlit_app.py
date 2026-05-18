@@ -4,7 +4,7 @@ import requests
 import datetime
 import re
 import math
-from fpdf2 import FPDF
+from fpdf import FPDF
 
 # --- 1. NASTAVENIA ---
 st.set_page_config(layout="wide", page_title="MEC Calculation")
