@@ -516,8 +516,9 @@ if st.session_state.kosik_poloziek:
     st.dataframe(st.session_state.kosik_poloziek, use_container_width=True)
 
 # --- EXPORT DO PDF (Upravené presne pre tvoj pôvodný košík) ---
+
 # =====================================================================
-# --- EXPORT DO PDF (S plnou podporou slovenskej diakritiky) ---
+# --- EXPORT DO PDF (Stabilný ReportLab s podporou slovenčiny) ---
 # =====================================================================
 if st.session_state.get("kosik_poloziek"):
     st.write("---")
@@ -528,84 +529,117 @@ if st.session_state.get("kosik_poloziek"):
     with col_pdf:
         if st.button("Pripraviť finálne PDF"):
             try:
-                # Inicializácia PDF (Na šírku - Landscape, A4)
-                pdf = FPDF(orientation='L', unit='mm', format='A4')
-                pdf.add_page()
+                # Vytvoríme pamäťový buffer pre PDF dáta
+                buffer = io.BytesIO()
                 
-                # --- REGISTRÁCIA FONTU S PODPOROU UTF-8 (Slovenčina) ---
-                # Využijeme systémový font DejaVuSans, ktorý je štandardom na Linux/Streamlit serveroch
+                # Inicializácia dokumentu na šírku (Landscape A4) s okrajmi
+                doc = SimpleDocTemplate(
+                    buffer, 
+                    pagesize=landscape(A4),
+                    rightMargin=20, leftMargin=20, topMargin=20, bottomMargin=20
+                )
+                
+                # Registrácia systémového fontu DejaVuSans (štandard na Linux/Streamlit serveroch)
+                # Vďaka tomu budú všetky mäkčene ako š, ž, ť fungovať úplne automaticky.
                 try:
-                    pdf.add_font("DejaVu", "", "DejaVuSans.ttf")
-                    pdf.add_font("DejaVu", "B", "DejaVuSans-Bold.ttf")
-                    pdf.add_font("DejaVu", "I", "DejaVuSans-Oblique.ttf")
-                    font_name = "DejaVu"
+                    pdfmetrics.registerFont(TTFont('DejaVu', 'DejaVuSans.ttf'))
+                    pdfmetrics.registerFont(TTFont('DejaVu-Bold', 'DejaVuSans-Bold.ttf'))
+                    font_normal = 'DejaVu'
+                    font_bold = 'DejaVu-Bold'
                 except Exception:
-                    # Bezpečný fallback pre lokálne testovanie (ak by na Windows chýbal DejaVu)
-                    font_name = "Helvetica"
+                    # Záložný font, ak by si testovala lokálne na Windows a nemala nainštalovaný DejaVu
+                    font_normal = 'Helvetica'
+                    font_bold = 'Helvetica-Bold'
                 
-                # Hlavička dokumentu (Použitie font_name namiesto "Helvetica")
-                pdf.set_font(font_name, "B", 16)
-                pdf.cell(0, 10, "CENOVÁ PONUKA", ln=True, align='L')
+                styles = getSampleStyleSheet()
                 
-                pdf.set_font(font_name, "", 10)
+                # Vlastné textové štýly
+                title_style = ParagraphStyle(
+                    'CPTitle', parent=styles['Heading1'], fontName=font_bold, fontSize=18, leading=22, spaceAfter=15
+                )
+                text_style = ParagraphStyle(
+                    'CPText', parent=styles['Normal'], fontName=font_normal, fontSize=10, leading=14
+                )
+                th_style = ParagraphStyle(
+                    'CPTableHeader', fontName=font_bold, fontSize=9, leading=11, textColor=colors.whitesmoke, alignment=1
+                )
+                td_style = ParagraphStyle(
+                    'CPTableCell', fontName=font_normal, fontSize=8, leading=10
+                )
+                
+                elements = []
+                
+                # Hlavička dokumentu
+                elements.append(Paragraph("CENOVÁ PONUKA", title_style))
+                
                 c_ponuky = ponuka if ('ponuka' in locals() and ponuka) else datetime.datetime.now().strftime("%Y%m%d-%H%M")
                 d_ponuky = datum.strftime("%d.%m.%Y") if 'datum' in locals() else datetime.datetime.now().strftime("%d.%m.%Y")
                 txt_zakaznik = zakaznik if 'zakaznik' in locals() else "Zákazník"
                 txt_krajina = krajina_hodnota if 'krajina_hodnota' in locals() else "SK"
                 
-                pdf.cell(0, 7, f"Číslo CP: {c_ponuky}", ln=True)
-                pdf.cell(0, 7, f"Dátum vystavenia: {d_ponuky}", ln=True)
-                pdf.cell(0, 7, f"Zákazník: {txt_zakaznik} ({txt_krajina})", ln=True)
-                pdf.ln(10)
+                elements.append(Paragraph(f"<b>Číslo CP:</b> {c_ponuky}", text_style))
+                elements.append(Paragraph(f"<b>Dátum vystavenia:</b> {d_ponuky}", text_style))
+                elements.append(Paragraph(f"<b>Zákazník:</b> {txt_zakaznik} ({txt_krajina})", text_style))
+                elements.append(Spacer(1, 15))
                 
-                # Hlavička tabuľky - TERAZ UŽ MÔŽEŠ POUŽIŤ DIAKRITIKU (Položka, Hmotnosť...)
-                headers = ["Položka", "Tvar", "Rozmery", "Ks", "Hmotnosť (kg)", "Vst. náklady", "Cena/ks", "Cena spolu"]
-                widths = [35, 15, 60, 15, 30, 35, 40, 45]
+                # Hlavička tabuľky (Slovenské názvy s diakritikou)
+                headers = ["Položka", "Tvar", "Rozmery", "Ks", "Hmotnosť", "Vst. náklady", "Cena/ks", "Cena spolu"]
+                table_data = [[Paragraph(h, th_style) for h in headers]]
                 
-                pdf.set_font(font_name, "B", 9)
-                pdf.set_fill_color(240, 240, 240)
-                for i in range(len(headers)):
-                    pdf.cell(widths[i], 10, headers[i], border=1, align='C', fill=True)
-                pdf.ln()
-                
-                # Čítanie z tvojho pôvodného košíka
-                pdf.set_font(font_name, "", 8)
                 suma_vsetko = 0.0
-                
                 for idx, p in enumerate(st.session_state.kosik_poloziek):
                     cena_kus = float(p.get("Finálna Cena (€)", 0.0))
                     pocet_ks = int(p.get("Počet kusov", 1))
                     spolu_polozka = cena_kus * pocet_ks
                     suma_vsetko += spolu_polozka
                     
-                    item_name = p.get("ITEM", f"Pol. {idx+1}")
-                    if not item_name:
-                        item_name = f"Pol. {idx+1}"
+                    item_name = p.get("ITEM", f"Pol. {idx+1}") or f"Pol. {idx+1}"
                     
-                    # fpdf2 teraz vypíše texty s mäkčeňmi (ako š, ž, ť) úplne bez chýb
-                    pdf.cell(widths[0], 8, str(item_name), border=1)
-                    pdf.cell(widths[1], 8, str(p.get('Tvar', '-')), border=1, align='C')
-                    pdf.cell(widths[2], 8, str(p.get('Rozmery', '-')), border=1)
-                    pdf.cell(widths[3], 8, str(pocet_ks), border=1, align='C')
-                    pdf.cell(widths[4], 8, f"{float(p.get('Hmotnosť (kg)', 0.0)):.3f} kg", border=1, align='R')
-                    pdf.cell(widths[5], 8, f"{float(p.get('Vstupné náklady (€)', 0.0)):.2f} €", border=1, align='R')
-                    pdf.cell(widths[6], 8, f"{cena_kus:.2f} €", border=1, align='R')
-                    pdf.cell(widths[7], 8, f"{spolu_polozka:.2f} €", border=1, align='R')
-                    pdf.ln()
+                    row = [
+                        Paragraph(str(item_name), td_style),
+                        Paragraph(str(p.get('Tvar', '-')), td_style),
+                        Paragraph(str(p.get('Rozmery', '-')), td_style),
+                        Paragraph(str(pocet_ks), td_style),
+                        Paragraph(f"{float(p.get('Hmotnosť (kg)', 0.0)):.3f} kg", td_style),
+                        Paragraph(f"{float(p.get('Vstupné náklady (€)', 0.0)):.2f} €", td_style),
+                        Paragraph(f"{cena_kus:.2f} €", td_style),
+                        Paragraph(f"{spolu_polozka:.2f} €", td_style)
+                    ]
+                    table_data.append(row)
                 
-                # Celková suma
-                pdf.ln(5)
-                pdf.set_font(font_name, "B", 12)
-                pdf.cell(sum(widths[:-1]), 10, "CELKOVÁ CENA PONUKY SPOLU:", border=0, align='R')
-                pdf.cell(widths[-1], 10, f"{suma_vsetko:.2f} €", border=1, align='C')
+                # Spodný riadok s celkovou sumou
+                total_style = ParagraphStyle('CPTotal', fontName=font_bold, fontSize=11, alignment=2)
+                table_data.append([
+                    Paragraph("<b>CELKOVÁ CENA PONUKY SPOLU:</b>", total_style), "", "", "", "", "", "",
+                    Paragraph(f"<b>{suma_vsetko:.2f} €</b>", total_style)
+                ])
                 
-                # Pätička
-                pdf.set_y(-25)
-                pdf.set_font(font_name, "I", 8)
-                pdf.cell(0, 10, f"Vygenerované systémom MECASYS - {datetime.datetime.now().strftime('%d.%m.%Y %H:%M')}", 0, 0, 'C')
-
-                # fpdf2 output vracia priamo bytes
-                pdf_bytes = pdf.output()
+                # Nastavenie optimálnych šírok stĺpcov pre A4 Landscape (celkovo cca 750 bodov)
+                col_widths = [110, 40, 150, 30, 80, 80, 80, 110]
+                t = Table(table_data, colWidths=col_widths)
+                t.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2c3e50')), # Moderná tmavosivá hlavička
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ('GRID', (0, 0), (-1, -2), 0.5, colors.grey),
+                    ('BOX', (0, 0), (-1, -2), 1, colors.HexColor('#2c3e50')),
+                    ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#f8f9fa')),
+                    ('SPAN', (0, -1), (6, -1)), # Zlúčenie buniek pre celkovú sumu
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ]))
+                
+                elements.append(t)
+                elements.append(Spacer(1, 20))
+                
+                # Pätička dokumentu
+                foot_style = ParagraphStyle('CPFoot', fontName=font_normal, fontSize=8, textColor=colors.gray, alignment=1)
+                elements.append(Paragraph(f"Vygenerované systémom MECASYS - {datetime.datetime.now().strftime('%d.%m.%Y %H:%M')}", foot_style))
+                
+                # Vygenerovanie výsledného súboru
+                doc.build(elements)
+                pdf_bytes = buffer.getvalue()
+                buffer.close()
                 
                 st.download_button(
                     label="⬇️ Stiahnuť finálnu ponuku (PDF)",
@@ -613,8 +647,7 @@ if st.session_state.get("kosik_poloziek"):
                     file_name=f"Ponuka_{txt_zakaznik}_{c_ponuky}.pdf",
                     mime="application/pdf"
                 )
-                st.success("PDF ponuka je pripravená na stiahnutie!")
+                st.success("PDF ponuka je pripravená prostredníctvom ReportLab!")
 
             except Exception as e:
                 st.error(f"Chyba pri generovaní PDF: {e}")
-
