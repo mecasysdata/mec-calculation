@@ -4,7 +4,14 @@ import requests
 import datetime
 import re
 import math
-from fpdf import FPDF
+
+from reportlab.lib.pagesizes import landscape, A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+import io
 
 # --- 1. NASTAVENIA ---
 st.set_page_config(layout="wide", page_title="MEC Calculation")
