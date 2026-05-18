@@ -368,19 +368,13 @@ with rk6: st.metric("Koop./kus", f"{cena_kooperacia:.3f} €")
 with rk7: st.metric("VSTUPNÉ NÁKLADY", f"{vstupne_naklady:.3f} €", delta=f"{hmotnost_kusu:.2f} kg", delta_color="off")
 
 # --- NOVÝ SPODNÝ INFORMAČNÝ PANEL S EDITÁCIOU PREDIKCIÍ VEDĽA SEBA ---
-st.write("")
 
-# Inicializácia trvalých hodnôt v pamäti pre prípad ručného prepisovania
+
+# Inicializácia perzistentnej pamäte v session_state pre ručné zásahy
 if "schvaleny_cas" not in st.session_state:
     st.session_state.schvaleny_cas = None
 if "schvalena_cena" not in st.session_state:
     st.session_state.schvalena_cena = None
-
-# OPRAVA: Použitie premennej aktualny_item namiesto neexistujúcej item
-if "stary_item_panel" not in st.session_state or st.session_state.stary_item_panel != aktualny_item:
-    st.session_state.stary_item_panel = aktualny_item
-    st.session_state.schvaleny_cas = kr1_predikovany if tvar_item == "KR" else stv1_predikovany
-    st.session_state.schvalena_cena = kr2_predikovany if tvar_item == "KR" else stv2_predikovany
 
 with st.container():
     st.markdown(
@@ -412,41 +406,104 @@ with st.container():
         """, unsafe_allow_html=True)
         
     with col_inf2:
-        # Iba jeden čistý checkbox na potvrdenie modelu
+        # Jeden čistý checkbox bez otravných emoji štvorčekov
         model_ok = st.checkbox("Potvrdzujem správnosť hodnôt z AI modelu", value=True, key="potvrdenie_modelu")
         
         col_cas, col_cena = st.columns(2)
         
+        # --- FÁZA 1: URČENIE VÝROBNÉHO ČASU (MODEL 1) ---
         if model_ok:
-            # Ak užívateľ potvrdil model, polia sú zamknuté a berú čisté predikcie
+            finalny_cas = kr1_predikovany if tvar_item == "KR" else stv1_predikovany
             with col_cas:
-                st.number_input("Výrobný čas (min)", value=kr1_predikovany if tvar_item == "KR" else stv1_predikovany, disabled=True, key="p_cas_dis")
-            with col_cena:
-                st.number_input("Cena komponentu (€)", value=kr2_predikovany if tvar_item == "KR" else stv2_predikovany, disabled=True, key="p_cena_dis")
-            
-            # Priradenie do finálnych premenných (čistý model)
-            kr1 = kr1_predikovany if tvar_item == "KR" else 0.0
-            kr2 = kr2_predikovany if tvar_item == "KR" else 0.0
-            stv1 = stv1_predikovany if tvar_item != "KR" else 0.0
-            stv2 = stv2_predikovany if tvar_item != "KR" else 0.0
+                st.number_input("Výrobný čas (min)", value=finalny_cas, disabled=True, key="dis_cas")
         else:
-            # Ak užívateľ odškrtol model, polia sa odomknú a načítajú naposledy uložené/upravené hodnoty
+            if st.session_state.schvaleny_cas is None:
+                st.session_state.schvaleny_cas = kr1_predikovany if tvar_item == "KR" else stv1_predikovany
+                
             with col_cas:
-                novy_cas = st.number_input("Upraviť výrobný čas (min)", min_value=0.0, value=st.session_state.schvaleny_cas, format="%.2f", key="p_cas_en")
+                finalny_cas = st.number_input("Upraviť výrobný čas (min)", min_value=0.0, value=st.session_state.schvaleny_cas, format="%.2f", key="en_cas")
+                if finalny_cas != st.session_state.schvaleny_cas:
+                    st.session_state.schvaleny_cas = finalny_cas
+                    # Resetujeme cenu, aby ju Model 2 v zápätí prepočítal z nového času
+                    st.session_state.schvalena_cena = None 
+                    st.rerun()
+
+        # --- FÁZA 2: DYNAMICKÉ SPUSTENIE MODELU 2 PRE CENU VZHĽADOM NA ČAS ---
+        if tvar_item == "KR":
+            # 🔮 TU DNES ZAPOJÍŠ SVOJ REÁLNY RF MODEL 2 PRE CENU (KR)
+            # Vstupom do predikcie bude premenná 'finalny_cas' (či už z modelu 1 alebo tvoj prepísaný)
+            # cena_z_modelu2 = float(model_rf_kr_cena.predict([[d, l, hustota, narocnost, finalny_cas]])[0])
+            cena_z_modelu2 = 35.0 + (finalny_cas * 1.5)  # Testovací dopočet, kým zapojíš model
+        else:
+            # 🔮 TU DNES ZAPOJÍŠ SVOJ REÁLNY RF MODEL 2 PRE CENU (STV)
+            # cena_z_modelu2 = float(model_rf_stv_cena.predict([[d, s, v, hustota, narocnost, finalny_cas]])[0])
+            cena_z_modelu2 = 55.0 + (finalny_cas * 2.0)  # Testovací dopočet, kým zapojíš model
+
+        # --- FÁZA 3: URČENIE CENY KOMPONENTU (MODEL 2) ---
+        if model_ok:
+            finalna_cena = cena_z_modelu2
             with col_cena:
-                nova_cena = st.number_input("Upraviť cenu komponentu (€)", min_value=0.0, value=st.session_state.schvalena_cena, format="%.2f", key="p_cena_en")
-            
-            # Tlačidlo pre definitívne uloženie ručne prepísaných hodnôt
-            if st.button("💾 Uložiť nové hodnoty", type="secondary", use_container_width=True):
-                st.session_state.schvaleny_cas = novy_cas
-                st.session_state.schvalena_cena = nova_cena
-                st.success("Hodnoty boli manuálne upravené a uložené!")
-                st.rerun()
-            
-            # Priradenie manuálne zadaných hodnôt do tvojich premenných
-            kr1 = st.session_state.schvaleny_cas if tvar_item == "KR" else 0.0
-            kr2 = st.session_state.schvalena_cena if tvar_item == "KR" else 0.0
-            stv1 = st.session_state.schvaleny_cas if tvar_item != "KR" else 0.0
-            stv2 = st.session_state.schvalena_cena if tvar_item != "KR" else 0.0
+                st.number_input("Cena komponentu (€)", value=finalna_cena, disabled=True, key="dis_cena")
+        else:
+            if st.session_state.schvalena_cena is None:
+                st.session_state.schvalena_cena = cena_z_modelu2
+                
+            with col_cena:
+                finalna_cena = st.number_input("Upraviť cenu komponentu (€)", min_value=0.0, value=st.session_state.schvalena_cena, format="%.2f", key="en_cena")
+                st.session_state.schvalena_cena = finalna_cena
 
     st.markdown('</div>', unsafe_allow_html=True)
+
+# Priradenie hodnôt do tvojich pôvodných premenných pre prípadný export/PDF mimo košíka
+if tvar_item == "KR":
+    kr1, kr2 = finalny_cas, finalna_cena
+    stv1, stv2 = 0.0, 0.0
+else:
+    stv1, stv2 = finalny_cas, finalna_cena
+    kr1, kr2 = 0.0, 0.0
+
+
+# =====================================================================
+# --- KOŠÍK / UKLADANIE PRIDANÝCH POLOŽIEK ---
+# =====================================================================
+if "kosik_poloziek" not in st.session_state:
+    st.session_state.kosik_poloziek = []
+
+st.write("")
+if st.button("➕ Pridať položku do ponuky (Uložiť hodnoty)", type="primary", use_container_width=True):
+    if aktualny_item.strip() == "":
+        st.error("❌ Nemôžeš uložiť položku bez zadania názvu ITEM!")
+    else:
+        # Príprava čistého riadku, ktorý sa neskôr môže poslať do Sheets databázy
+        nova_polozka = {
+            "ITEM": aktualny_item,
+            "Tvar": tvar_item,
+            "Počet kusov": pocet_kusov,
+            "Finálny Čas (min)": round(finalny_cas, 2),
+            "Finálna Cena (€)": round(finalna_cena, 2),
+            "Hmotnosť (kg)": round(hmotnost_kusu, 3),
+            "Vstupné náklady (€)": round(vstupne_naklady, 2),
+            "Rozmery": f"D:{d} | S:{s} | V:{v} | L:{l}"
+        }
+        
+        # Uloženie do pamäte aktuálneho košíka
+        st.session_state.kosik_poloziek.append(nova_polozka)
+        
+        # Kompletné premazanie formulára pre zadanie novej položky
+        st.session_state.stary_item = ""
+        st.session_state.pocet_kusov = 1
+        st.session_state.d_rozmer = 0.0
+        st.session_state.l_rozmer = 0.0
+        st.session_state.s_rozmer = 0.0
+        st.session_state.v_rozmer = 0.0
+        if "schvaleny_cas" in st.session_state: del st.session_state.schvaleny_cas
+        if "schvalena_cena" in st.session_state: del st.session_state.schvalena_cena
+        
+        st.success(f"✔️ Položka '{aktualny_item}' bola úspešne pridaná do ponuky.")
+        st.rerun()
+
+# Vykreslenie prehľadnej tabuľky košíka na spodku stránky
+if st.session_state.kosik_poloziek:
+    st.divider()
+    st.subheader("🛒 Prehľad pridaných položiek v aktuálnej ponuke")
+    st.dataframe(st.session_state.kosik_poloziek, use_container_width=True)
