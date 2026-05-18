@@ -24,6 +24,10 @@ if "cas_potvrdeny" not in st.session_state:
     st.session_state.cas_potvrdeny = False
 if "schvaleny_cas" not in st.session_state:
     st.session_state.schvaleny_cas = 3.0
+if "cena_potvrdena" not in st.session_state:
+    st.session_state.cena_potvrdena = False
+if "schvalena_cena" not in st.session_state:
+    st.session_state.schvalena_cena = 3.0
 
 # --- 2. CACHING (Sťahovanie dát len raz) ---
 @st.cache_data(ttl=600)  # Dáta sa držia v pamäti 10 minút
@@ -114,7 +118,7 @@ if item != st.session_state.stary_item:
         st.session_state.stary_item = item
         
         # Odstránime kľúče z pamäte, aby sa widgety vykreslili čisté a prázdne
-        kluce_na_vymazanie = ["pocet_input", "narocnost_input", "tvar_input", "d_kr", "l_kr", "d_stv", "s_stv", "v_stv", "mat_select", "akost_multi", "man_akost_chk", "polo_inteligent", "koop_main_checkbox", "manual_rho", "mat_k", "druh_k", "vystupny_cas_input"]
+        kluce_na_vymazanie = ["pocet_input", "narocnost_input", "tvar_input", "d_kr", "l_kr", "d_stv", "s_stv", "v_stv", "mat_select", "akost_multi", "man_akost_chk", "polo_inteligent", "koop_main_checkbox", "manual_rho", "mat_k", "druh_k", "vystupny_cas_input", "vystupna_cena_input"]
         for klic in kluce_na_vymazanie:
             if klic in st.session_state:
                 del st.session_state[klic]
@@ -122,6 +126,8 @@ if item != st.session_state.stary_item:
         # Reset stavov pre AI model
         st.session_state.cas_potvrdeny = False
         st.session_state.schvaleny_cas = 3.0
+        st.session_state.cena_potvrdena = False
+        st.session_state.schvalena_cena = 3.0
         st.rerun()
     else:
         st.session_state.stary_item = item
@@ -215,7 +221,7 @@ def get_mecasys_logic(cat, akost_str):
     sub = "OSTATNÉ"
     rho = 0.0
     if not akost_str: return sub, rho
-    match = re.search(r"\d\.\d{2,4}", akost_str)  # <--- TU BOLA CHYBA, TERAZ JE TO SPRÁVNE SPOJENÉ
+    match = re.search(r"\d\.\d{2,4}", akost_str)
     wnr_val = round(float(match.group()), 4) if match else 0.0
     
     if cat == "OCEĽ":
@@ -341,11 +347,11 @@ st.markdown(
     """, unsafe_allow_html=True
 )
 
-# --- 10. PREDREZERVOVANÉ PREMENNÉ PRE AI MODELY ---
+# --- 10. MEC AI COMPACT DASHBOARD (Všetko v jednom riadku podľa dohody) ---
 st.divider()
-st.subheader("🤖 Predikcia výroby (MEC AI)")
+st.subheader("🤖 Predikčné modely & Schválenie (MEC AI)")
 
-# Definícia fixných zástupných hodnôt podľa typu položky (Pripravené na tvoje modely)
+# Definícia fixných zástupných hodnôt podľa typu položky (Pripravené na tvoje modely poobede)
 if tvar_item == "KR":
     model_predikcia_cas = 3.0   # Sem poobede zapíšeš: model_kr_cas.predict(...)
     model_predikcia_cena = 3.0  # Sem poobede zapíšeš: model_kr_cena.predict(...)
@@ -353,74 +359,87 @@ else:
     model_predikcia_cas = 3.0   # Sem poobede zapíšeš: model_stv_cas.predict(...)
     model_predikcia_cena = 3.0  # Sem poobede zapíšeš: model_stv_cena.predict(...)
 
-col_mod1, col_mod2 = st.columns([3, 2])
+# Vytvorenie 5 presných stĺpcov vedľa seba v jednom riadku
+ai_col1, ai_col2, ai_col3, ai_col4, ai_col5 = st.columns(5)
 
-with col_mod1:
+# --- 1. STĹPEC: Predpokladaný výrobný čas /ks [min] ---
+with ai_col1:
     vystupny_cas = st.number_input(
-        "Predpokladaný výrobný čas (hod.)", 
+        "Výrobný čas /ks [min]", 
         min_value=0.0, 
         value=float(model_predikcia_cas),
         format="%.2f",
         key="vystupny_cas_input"
     )
 
-with col_mod2:
-    st.write("")  # Odsadenie pre vertikálne zarovnanie
+# --- 2. STĹPEC: Tlačítko Schváliť výrobný čas ---
+with ai_col2:
+    st.write("")  # Odsadenie pre optické zarovnanie s inputom
     if st.button("✅ Schváliť výrobný čas", type="secondary", use_container_width=True):
         st.session_state.schvaleny_cas = vystupny_cas
         st.session_state.cas_potvrdeny = True
         st.rerun()
 
-# Druhý krok: Zobrazenie ceny sa odomkne až po kliknutí na tlačidlo hore
-finálna_cena_modelu = 0.0
-if st.session_state.cas_potvrdeny:
-    st.info(f"Vystavený čas bol schválený na: **{st.session_state.schvaleny_cas:.2f} hod.** Spúšťam predikciu ceny...")
-    
-    col_mod3, _ = st.columns([3, 2])
-    with col_mod3:
-        finálna_cena_modelu = model_predikcia_cena
-        st.metric(label="Predikovaná cena kusu z modelu", value=f"{finálna_cena_modelu:.2f} €")
-else:
-    st.warning("⚠️ Pre predikciu ceny kusu musíte najskôr potvrdiť alebo manuálne upraviť výrobný čas vyššie.")
+# --- 3. STĹPEC: Predikovaná cena ks ---
+with ai_col3:
+    if st.session_state.cas_potvrdeny:
+        vystupna_cena = st.number_input(
+            "Predikovaná cena /ks (€)", 
+            min_value=0.0, 
+            value=float(model_predikcia_cena),
+            format="%.2f",
+            key="vystupna_cena_input"
+        )
+    else:
+        st.info("💡 Čaká sa na schválenie času...")
+        vystupna_cena = 0.0
 
+# --- 4. STĹPEC: Tlačítko Schváliť cenu ---
+with ai_col4:
+    st.write("")  # Odsadenie pre optické zarovnanie
+    if st.button("✅ Schváliť cenu", type="secondary", use_container_width=True, disabled=not st.session_state.cas_potvrdeny):
+        st.session_state.schvalena_cena = vystupna_cena
+        st.session_state.cena_potvrdena = True
+        st.rerun()
 
-# --- 11. LOGIKA PRE KOSÍK (PRIDÁVANIE A ZOBRAZENIE) ---
-st.write("")
-col_btn1, col_btn2 = st.columns([2, 8])
-
-with col_btn1:
-    # Tlačidlo do košíka je podmienené schválením času z modelu
-    if st.button("🛒 Pridať item do košíka", type="primary", use_container_width=True, disabled=not st.session_state.cas_potvrdeny):
+# --- 5. STĹPEC: Pridanie položky do košíka ---
+with ai_col5:
+    st.write("")  # Odsadenie pre optické zarovnanie
+    if st.button("🛒 Pridať item do košíka", type="primary", use_container_width=True, disabled=not st.session_state.cena_potvrdena):
         if item.strip() == "":
-            st.warning("Zadaj názov ITEMu pred pridaním do košíka.")
+            st.warning("Zadaj názov ITEMu pred pridaním.")
         else:
-            # Vytvoríme záznam o aktuálnej položke vrátane výstupov z tvojho modelu
+            # Vytvoríme záznam do košíka
             nova_polozka = {
                 "ITEM": item,
                 "Počet kusov": pocet_kusov,
                 "Materiál": material_vyber,
                 "Akosť": relevantna_akost,
-                "Výrobný čas (hod)": round(st.session_state.schvaleny_cas, 2),
-                "Model Cena (€/ks)": round(finálna_cena_modelu, 2),
+                "Výrobný čas (min/ks)": round(st.session_state.schvaleny_cas, 2),
+                "Model Cena (€/ks)": round(st.session_state.schvalena_cena, 2),
                 "Mat. / kus (€)": round(cena_mat_kus, 3),
                 "Koop. / kus (€)": round(cena_kooperacia, 3),
                 "Vstupné náklady (€/ks)": round(vstupne_naklady, 3),
                 "Celkom za položku (€)": round(vstupne_naklady * pocet_kusov, 2)
             }
             st.session_state.kosik.append(nova_polozka)
-            st.success(f"Položka '{item}' bola úspešne pridaná do ponuky!")
+            st.success(f"Položka '{item}' pridaná!")
             st.rerun()
 
-# Ak košík obsahuje položky, vykreslíme tabuľku na spodku aplikácie
+# Prehľadné stavové texty pod riadkom pre lepšiu kontrolu užívateľa
+if st.session_state.cas_potvrdeny and not st.session_state.cena_potvrdena:
+    st.info(f"⏱️ Čas schválený na: **{st.session_state.schvaleny_cas:.2f} min**. Pokračujte schválením ceny kusu.")
+elif st.session_state.cena_potvrdena:
+    st.success(f"💰 Cena úspešne schválená na: **{st.session_state.schvalena_cena:.2f} €**. Položku môžete vložiť do košíka.")
+
+# --- 11. ZOBRAZENIE KOŠÍKA (Na spodku aplikácie) ---
 if st.session_state.kosik:
     st.write("---")
     st.subheader(f"📋 Aktuálny zoznam položiek v ponuke (Počet: {len(st.session_state.kosik)})")
     
-    # Prevedieme košík na DataFrame, aby sa pekne zobrazil v tabuľke
     df_kosik = pd.DataFrame(st.session_state.kosik)
     st.dataframe(df_kosik, use_container_width=True, hide_index=True)
     
-    # Rýchly výpočet celkovej sumy ponuky
     celkova_suma = df_kosik["Celkom za položku (€)"].sum()
     
     col_sum1, col_sum2 = st.columns([6, 2])
