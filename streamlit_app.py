@@ -348,18 +348,19 @@ st.markdown(
 )
 
 # --- 10. MEC AI COMPACT DASHBOARD (Všetko v jednom riadku podľa dohody) ---
+# --- 10. MEC AI COMPACT DASHBOARD ---
 st.divider()
-st.subheader("🤖MEC AI")
+st.subheader("🤖 Predikčné modely & Schválenie (MEC AI)")
 
-# Definícia fixných zástupných hodnôt podľa typu položky (Pripravené na tvoje modely poobede)
+# Definícia fixných zástupných hodnôt podľa typu položky
 if tvar_item == "KR":
-    model_predikcia_cas = 3.0   # Sem poobede zapíšeš: model_kr_cas.predict(...)
-    model_predikcia_cena = 3.0  # Sem poobede zapíšeš: model_kr_cena.predict(...)
+    model_predikcia_cas = 3.0   
+    model_predikcia_cena = 3.0  
 else:
-    model_predikcia_cas = 3.0   # Sem poobede zapíšeš: model_stv_cas.predict(...)
-    model_predikcia_cena = 3.0  # Sem poobede zapíšeš: model_stv_cena.predict(...)
+    model_predikcia_cas = 3.0   
+    model_predikcia_cena = 3.0  
 
-# Vytvorenie 5 presných stĺpcov vedľa seba v jednom riadku
+# Vytvorenie 5 stĺpcov vedľa seba v jednom riadku
 ai_col1, ai_col2, ai_col3, ai_col4, ai_col5 = st.columns(5)
 
 # --- 1. STĹPEC: Predpokladaný výrobný čas /ks [min] ---
@@ -374,7 +375,7 @@ with ai_col1:
 
 # --- 2. STĹPEC: Tlačítko Schváliť výrobný čas ---
 with ai_col2:
-    st.write("")  # Odsadenie pre optické zarovnanie s inputom
+    st.write("")  
     if st.button("✅ Schváliť výrobný čas", type="secondary", use_container_width=True):
         st.session_state.schvaleny_cas = vystupny_cas
         st.session_state.cas_potvrdeny = True
@@ -396,25 +397,32 @@ with ai_col3:
 
 # --- 4. STĹPEC: Tlačítko Schváliť cenu ---
 with ai_col4:
-    st.write("")  # Odsadenie pre optické zarovnanie
+    st.write("")  
     if st.button("✅ Schváliť cenu", type="secondary", use_container_width=True, disabled=not st.session_state.cas_potvrdeny):
         st.session_state.schvalena_cena = vystupna_cena
         st.session_state.cena_potvrdena = True
         st.rerun()
 
-# --- 5. STĹPEC: Pridanie položky do košíka ---
+# --- 5. STĹPEC: Pridanie položky do košíka (Formátovanie rozmerov) ---
 with ai_col5:
-    st.write("")  # Odsadenie pre optické zarovnanie
+    st.write("")  
     if st.button("🛒 Pridať item do košíka", type="primary", use_container_width=True, disabled=not st.session_state.cena_potvrdena):
         if item.strip() == "":
             st.warning("Zadaj názov ITEMu pred pridaním.")
         else:
-            # Vytvoríme záznam do košíka
+            # Zostavenie reťazca rozmerov podľa tvaru
+            if tvar_item == "KR":
+                rozmery_formatted = f"{d:.1f} x {l:.1f}"
+            else:
+                rozmery_formatted = f"{d:.1f} x {s:.1f} x {v:.1f}"
+
+            # Vytvorenie záznamu do košíka (Rozmery sú vložené presne za Akosť)
             nova_polozka = {
                 "ITEM": item,
                 "Počet kusov": pocet_kusov,
                 "Materiál": material_vyber,
                 "Akosť": relevantna_akost,
+                "Rozmery": rozmery_formatted,  # <-- Tvoj nový stĺpec
                 "Výrobný čas (min/ks)": round(st.session_state.schvaleny_cas, 2),
                 "Model Cena (€/ks)": round(st.session_state.schvalena_cena, 2),
                 "Mat. / kus (€)": round(cena_mat_kus, 3),
@@ -426,7 +434,6 @@ with ai_col5:
             st.success(f"Položka '{item}' pridaná!")
             st.rerun()
 
-# Prehľadné stavové texty pod riadkom pre lepšiu kontrolu užívateľa
 if st.session_state.cas_potvrdeny and not st.session_state.cena_potvrdena:
     st.info(f"⏱️ Čas schválený na: **{st.session_state.schvaleny_cas:.2f} min**. Pokračujte schválením ceny kusu.")
 elif st.session_state.cena_potvrdena:
