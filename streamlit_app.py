@@ -14,7 +14,6 @@ from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-st.set_page_config(layout="wide", page_title="MEC Calculation")
 # --- 1. NASTAVENIA ---
 st.set_page_config(layout="wide", page_title="MEC Calculation")
 
