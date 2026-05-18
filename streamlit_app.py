@@ -7,6 +7,10 @@ import math
 # --- 1. CONFIG & ŠTÝL ---
 st.set_page_config(layout="wide", page_title="MEC Calculation")
 
+# --- DOPLNENÝ POMOCNÝ MECHANIZMUS PRE KOŠÍK ---
+if "kosik" not in st.session_state:
+    st.session_state.kosik = []
+
 # --- DOPLNENÝ POMOCNÝ MECHANIZMUS PRE INTELIGENTNÝ RESET ITEMU ---
 if "stary_item" not in st.session_state:
     st.session_state.stary_item = ""
@@ -97,9 +101,6 @@ with col5:
     item = st.text_input("ITEM", key="item_input")
 
 # --- DETEKCIA ZMENY AKTUÁLNEHO ITEMU ---
-# Definujeme stavy na základe tvojej logiky:
-# 1. Ak sa ITEM prepíše -> vymažú/rešetujú sa widgety od neho nadol cez st.rerun()
-# 2. Ak užívateľ nezmení ITEM (ale zmení čokoľvek iné) -> vymaže sa iba počet kusov, ostatné polia držia hodnotu.
 if item != st.session_state.stary_item:
     if st.session_state.stary_item != "":
         # Užívateľ prepísal ITEM -> úplný reset všetkých polí od ITEM nadol
@@ -115,9 +116,6 @@ if item != st.session_state.stary_item:
     else:
         st.session_state.stary_item = item
 else:
-    # ITEM sa nezmenil (užívateľ mení iné vlastnosti alebo naceňuje rovnaký ITEM znova)
-    # V tom prípade chceme vymazať iba počet kusov, ostatné sa ponechá.
-    # Aby sme nezacyklili aplikáciu, sledujeme reálne odoslanie cez interakciu s widgetom
     pass
 
 with col6: 
@@ -286,7 +284,6 @@ with rk1:
 cena_kooperacia = 0.0
 
 if je_kooperacia:
-    # 1. Získame unikátne materiály pre kooperáciu bezpečne
     zoznam_vsetkych_mat_koop = sorted(df_koop['material'].dropna().unique()) if 'material' in df_koop.columns else []
     
     try: default_idx = zoznam_vsetkych_mat_koop.index(material_vyber)
@@ -300,7 +297,6 @@ if je_kooperacia:
         mozne_operacie = sorted(df_f_koop['druh'].dropna().unique()) if 'druh' in df_f_koop.columns else []
         vybrany_druh = st.selectbox("Druh koop.", mozne_operacie, key="druh_k")
     
-    # Bezpečné vytiahnutie tarify (Defenzívny filter namiesto priameho iloc[0])
     filter_koop_row = df_koop[(df_koop['druh'] == vybrany_druh) & (df_koop['material'] == vybrany_mat_koop)]
     
     if not filter_koop_row.empty:
@@ -334,3 +330,47 @@ st.markdown(
     </div>
     """, unsafe_allow_html=True
 )
+
+# --- DOPLNENÁ LOGIKA PRE KOSÍK (PRIDÁVANIE A ZOBRAZENIE) ---
+st.write("")
+col_btn1, col_btn2 = st.columns([2, 8])
+
+with col_btn1:
+    if st.button("🛒 Pridať item do košíka", type="primary", use_container_width=True):
+        if item.strip() == "":
+            st.warning("Zadaj názov ITEMu pred pridaním do košíka.")
+        else:
+            # Vytvoríme záznam o aktuálnej položke
+            nova_polozka = {
+                "ITEM": item,
+                "Počet kusov": pocet_kusov,
+                "Materiál": material_vyber,
+                "Akosť": relevantna_akost,
+                "Hmotnosť (kg/ks)": round(hmotnost_kusu, 3),
+                "Mat. / kus (€)": round(cena_mat_kus, 3),
+                "Koop. / kus (€)": round(cena_kooperacia, 3),
+                "Vstupné náklady (€/ks)": round(vstupne_naklady, 3),
+                "Celkom za položku (€)": round(vstupne_naklady * pocet_kusov, 2)
+            }
+            st.session_state.kosik.append(nova_polozka)
+            st.success(f"Položka '{item}' bola úspešne pridaná do ponuky!")
+            st.rerun()
+
+# Ak košík obsahuje položky, vykreslíme tabuľku na spodku aplikácie
+if st.session_state.kosik:
+    st.write("---")
+    st.subheader(f"📋 Aktuálny zoznam položiek v ponuke (Počet: {len(st.session_state.kosik)})")
+    
+    # Prevedieme košík na DataFrame, aby sa pekne zobrazil v tabuľke
+    df_kosik = pd.DataFrame(st.session_state.kosik)
+    st.dataframe(df_kosik, use_container_width=True, hide_index=True)
+    
+    # Rýchly výpočet celkovej sumy ponuky
+    celkova_suma = df_kosik["Celkom za položku (€)"].sum()
+    
+    col_sum1, col_sum2 = st.columns([6, 2])
+    with col_sum2:
+        st.metric("CELKOVÁ CENA PONUKY", f"{celkova_suma:.2f} €")
+        if st.button("🗑️ Vymazať celý košík", type="secondary", use_container_width=True):
+            st.session_state.kosik = []
+            st.rerun()
