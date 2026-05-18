@@ -440,6 +440,7 @@ elif st.session_state.cena_potvrdena:
     st.success(f"💰 Cena úspešne schválená na: **{st.session_state.schvalena_cena:.2f} €**. Položku môžete vložiť do košíka.")
 
 # --- 11. ZOBRAZENIE KOŠÍKA (Na spodku aplikácie) ---
+# --- 11. ZOBRAZENIE KOŠÍKA (Na spodku aplikácie) ---
 if st.session_state.kosik:
     st.write("---")
     st.subheader(f"📋 Aktuálny zoznam položiek v ponuke (Počet: {len(st.session_state.kosik)})")
@@ -505,118 +506,4 @@ if st.session_state.kosik:
                         "Rozmer L / S": val_l,
                         "Rozmer V": val_v,
                         "Hustota": hustota,  
-                        "Hmotnosť kusu (kg)": p["Model Cena (€/ks)"] if p["Počet kusov"] == 0 else round((p["Celkom za položku (€)"] / p["Počet kusov"]) / (vstupne_naklady if vstupne_naklady > 0 else 1) * hmotnost_kusu, 3),
-                        "Náročnosť": narocnost,
-                        "J.cena materiálu (€/bm)": cena_polotovaru,
-                        "Náklad materiál (€/ks)": p["Mat. / kus (€)"],
-                        "Náklad kooperácia (€/ks)": p["Koop. / kus (€)"],
-                        "Vstupné náklady (€/ks)": p["Vstupné náklady (€/ks)"],
-                        "Čas (min)": p["Výrobný čas (min/ks)"],
-                        "Jednotková cena (€/ks)": p["Model Cena (€/ks)"],
-                        "Počet kusov": p["Počet kusov"],
-                        "Cena položky spolu (€)": p["Celkom za položku (€)"]
-                    }
-                    riadky_na_zapis.append(novy_riadok_sheet)
-                
-                URL_TVOJHO_APPS_SCRIPTU = "https://script.google.com/macros/s/AKfycbwx7sAeUheQf1dm2r6k7jTslD9ufhq2yk1OWZXWjxVkeZOttVI949GIiPGx8l1B3cIP/exec"
-                
-                with st.spinner("⏳ Zapisujem ponuku do hárku Hárok1..."):
-                    try:
-                        odpoved = requests.post(URL_TVOJHO_APPS_SCRIPTU, json=riadky_na_zapis)
-                        
-                        if "success" in odpoved.text.lower():
-                            st.success(f"🎉 Ponuka '{ponuka}' bola úspešne zapísaná do záložky Hárok1!")
-                            
-                            st.session_state.kosik = []
-                            st.session_state.stary_item = ""
-                            st.session_state.aktualny_pocet_kusov = 1
-                            st.session_state.cas_potvrdeny = False
-                            st.session_state.cena_potvrdena = False
-                            if "item_input" in st.session_state: st.session_state.item_input = ""
-                            
-                            st.rerun()
-                        else:
-                            st.error(f"❌ Chyba skriptu tabuľky: {odpoved.text}")
-                            
-                    except Exception as e:
-                        st.error(f"❌ Nepodarilo sa nadviazať spojenie. Detail: {e}")
-
-    with col_pdf:
-        try:
-            import unicodedata
-            from fpdf import FPDF
-
-            # Pomocná funkcia na bezpečné odstránenie slovenskej diakritiky pre PDF
-            def odstran_diakritiku(text):
-                if not text:
-                    return ""
-                text_str = str(text)
-                # Rozloží znaky na základné písmeno + mäkčeň/dĺžeň a odfiltruje ich
-                nfkd_form = unicodedata.normalize('NFKD', text_str)
-                return "".join([c for c in nfkd_form if not unicodedata.combining(c)])
-
-            class CP_PDF(FPDF):
-                def header(self):
-                    self.set_font('Helvetica', 'B', 14)
-                    self.cell(0, 10, 'CENOVA PONUKA (MEC Calculation)', ln=True, align='C')
-                    self.ln(5)
-                def footer(self):
-                    self.set_y(-15)
-                    self.set_font('Helvetica', 'I', 8)
-                    self.cell(0, 10, f'Strana {self.page_no()}', align='C')
-
-            pdf = CP_PDF()
-            pdf.add_page()
-            pdf.set_font("Helvetica", size=10)
-            
-            # Bezpečné očistenie hlavných textov od diakritiky
-            ciste_ponuka = odstran_diakritiku(ponuka)
-            ciste_zakaznik = odstran_diakritiku(zakaznik)
-            ciste_krajina = odstran_diakritiku(krajina_hodnota)
-            ciste_datum = datum.strftime('%d.%m.%Y') if hasattr(datum, 'strftime') else odstran_diakritiku(str(datum))
-            
-            # Hlavička dokumentu
-            pdf.set_font("Helvetica", "B", 11)
-            pdf.cell(0, 7, f"Oznacenie CP: {ciste_ponuka}", ln=True)
-            pdf.cell(0, 7, f"Datum vyhotovenia: {ciste_datum}", ln=True)
-            pdf.cell(0, 7, f"Zakaznik: {ciste_zakaznik} ({ciste_krajina})", ln=True)
-            pdf.ln(5)
-            
-            # Tabuľka - Hlavička stĺpcov
-            pdf.set_font("Helvetica", "B", 9)
-            pdf.cell(35, 7, "ITEM", border=1)
-            pdf.cell(35, 7, "Material", border=1)
-            pdf.cell(35, 7, "Rozmery", border=1)
-            pdf.cell(20, 7, "Pocet ks", border=1, align='C')
-            pdf.cell(30, 7, "Cena/ks", border=1, align='R')
-            pdf.cell(35, 7, "Spolu", border=1, align='R', ln=True)
-            
-            # Riadky tabuľky z košíka
-            pdf.set_font("Helvetica", size=9)
-            for item_kosik in st.session_state.kosik:
-                item_text = odstran_diakritiku(item_kosik["ITEM"])
-                mat_text = odstran_diakritiku(item_kosik["Materiál"])
-                rozmery_text = odstran_diakritiku(item_kosik["Rozmery"])
-                
-                pdf.cell(35, 7, item_text, border=1)
-                pdf.cell(35, 7, mat_text, border=1)
-                pdf.cell(35, 7, rozmery_text, border=1)
-                pdf.cell(20, 7, str(item_kosik["Počet kusov"]), border=1, align='C')
-                pdf.cell(30, 7, f"{item_kosik['Model Cena (€/ks)']:.2f} EUR", border=1, align='R')
-                pdf.cell(35, 7, f"{item_kosik['Celkom za položku (€)']:.2f} EUR", border=1, align='R', ln=True)
-                
-            pdf.ln(5)
-            pdf.set_font("Helvetica", "B", 12)
-            pdf.cell(0, 10, f"CELKOVA CENA PONUKY: {celkova_suma:.2f} EUR", ln=True, align='R')
-            
-            pdf_data = pdf.output()
-            
-            st.download_button(
-                label="📄 Generovať a stiahnuť PDF ponuku",
-                data=bytes(pdf_data),
-                file_name=f"Cenova_ponuka_{ciste_ponuka if ciste_ponuka.strip() else 'MEC'}.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
-        except Exception as pdf_err:
-            st.error(f"Nepodarilo sa pripraviť PDF modul: {pdf_err}")
+                        "Hmotnosť kusu (kg)": p["Model Cena (€/ks)"] if p["Počet kusov"] == 0 else round((p
