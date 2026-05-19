@@ -439,7 +439,6 @@ if st.session_state.cas_potvrdeny and not st.session_state.cena_potvrdena:
 elif st.session_state.cena_potvrdena:
     st.success(f"💰 Cena úspešne schválená na: **{st.session_state.schvalena_cena:.2f} €**. Položku môžete vložiť do košíka.")
 
-# --- 11. ZOBRAZENIE KOŠÍKA (Na spodku aplikácie) ---
 # --- 11. ZOBRAZENIE KOŠÍKA A FINÁLNE AKCIE ---
 # Tabuľku košíka zobrazíme, len ak nie je prázdny
 if st.session_state.kosik:
@@ -488,7 +487,7 @@ with col_pdf:
 
             with st.spinner("⏳ Pripravujem a generujem PDF dokument..."):
                 # Otočíme stránku na šírku (Landscape 'L'), aby sa tam zmestili všetky stĺpce
-                pdf = CP_PDF(orientation='L', unit='mm', format='A4')
+                pdf = CP_PDF(orientation='P', unit='mm', format='A4')
                 pdf.add_page()
                 pdf.set_font("Helvetica", size=9)
                 
