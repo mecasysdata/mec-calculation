@@ -422,8 +422,7 @@ with ai_col5:
                 "Počet kusov": pocet_kusov,
                 "Materiál": material_vyber,
                 "Akosť": relevantna_akost,
-                "Polotovar": vybrany_polo_str,  # <-- TENTO RIADOK PRIDÁVAME
-                "Rozmery": rozmery_formatted,  
+                "Rozmery": rozmery_formatted,  # <-- Tvoj nový stĺpec
                 "Výrobný čas (min/ks)": round(st.session_state.schvaleny_cas, 2),
                 "Model Cena (€/ks)": round(st.session_state.schvalena_cena, 2),
                 "Mat. / kus (€)": round(cena_mat_kus, 3),
@@ -460,18 +459,14 @@ if st.session_state.kosik:
 # Rozdelenie na 3 stĺpce vedľa seba
 col_pdf, col_save, col_reset = st.columns(3)
 
-# 1. STĹPEC: Generovanie podrobného PDF a Excelu v ZIP archíve
+# 1. STĹPEC: Generovanie podrobného PDF
 with col_pdf:
     if not st.session_state.kosik:
-        st.info("🛒 Pre stiahnutie podkladov pridajte položky do košíka.")
+        st.info("🛒 Pre stiahnutie PDF pridajte položky do košíka.")
     else:
         try:
             import unicodedata
-            import io
-            import zipfile
             from fpdf import FPDF
-            import openpyxl
-            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
             def odstran_diakritiku(text):
                 if not text:
@@ -490,10 +485,9 @@ with col_pdf:
                     self.set_font('Helvetica', 'I', 8)
                     self.cell(0, 10, f'Strana {self.page_no()}', align='C')
 
-            with st.spinner("⏳ Pripravujem PDF dokument a Excel export..."):
-                
-                # --- A. GENERUJE ME PDF (Preklopené na Landscape 'L' kvôli šírke) ---
-                pdf = CP_PDF(orientation='L', unit='mm', format='A4')
+            with st.spinner("⏳ Pripravujem a generujem PDF dokument..."):
+                # Otočíme stránku na šírku (Landscape 'L'), aby sa tam zmestili všetky stĺpce
+                pdf = CP_PDF(orientation='P', unit='mm', format='A4')
                 pdf.add_page()
                 pdf.set_font("Helvetica", size=9)
                 
@@ -508,178 +502,47 @@ with col_pdf:
                 pdf.cell(0, 6, f"Zakaznik: {ciste_zakaznik} ({ciste_krajina})", ln=True)
                 pdf.ln(4)
                 
-                # Šírky stĺpcov pre Landscape (Spolu 277 mm z dostupných ~280mm)
-                # Pridaný stĺpec "Popis polotovaru" so šírkou 45mm
-                w_item = 22
-                w_mat = 25
-                w_akost = 20
-                w_polo = 45  # Nový stĺpec
-                w_rozmer = 25
-                w_ks = 15
-                w_mat_ks = 22
-                w_koop = 22
-                w_vst = 25
-                w_cenaks = 24
-                w_spolu = 32
-
-                # Hlavička tabuľky v PDF
+                # Definícia stĺpcov pre Landscape orientáciu (Celková šírka cca 275 mm)
                 pdf.set_font("Helvetica", "B", 8)
-                pdf.cell(w_item, 7, "ITEM", border=1)
-                pdf.cell(w_mat, 7, "Material", border=1)
-                pdf.cell(w_akost, 7, "Akost", border=1)
-                pdf.cell(w_polo, 7, "Popis polotovaru", border=1) # Nový stĺpec
-                pdf.cell(w_rozmer, 7, "Rozmery", border=1)
-                pdf.cell(w_ks, 7, "Pocet ks", border=1, align='C')
-                pdf.cell(w_mat_ks, 7, "Mat./ks", border=1, align='R')
-                pdf.cell(w_koop, 7, "Koop./ks", border=1, align='R')
-                pdf.cell(w_vst, 7, "Vst. naklady", border=1, align='R')
-                pdf.cell(w_cenaks, 7, "Cena/ks", border=1, align='R')
-                pdf.cell(w_spolu, 7, "Spolu", border=1, align='R', ln=True)
+                pdf.cell(25, 7, "ITEM", border=1)
+                pdf.cell(30, 7, "Material", border=1)
+                pdf.cell(25, 7, "Akost", border=1)
+                pdf.cell(30, 7, "Rozmery", border=1)
+                pdf.cell(16, 7, "Pocet ks", border=1, align='C')
+                pdf.cell(25, 7, "Mat./ks", border=1, align='R')
+                pdf.cell(25, 7, "Koop./ks", border=1, align='R')
+                pdf.cell(30, 7, "Vst. naklady", border=1, align='R')
+                pdf.cell(30, 7, "Cena/ks", border=1, align='R')
+                pdf.cell(35, 7, "Spolu", border=1, align='R', ln=True)
                 
                 pdf.set_font("Helvetica", size=8)
                 for item_kosik in st.session_state.kosik:
-                    # Zabezpečíme, aby pridanie nového kľúča zo Session State nezlyhalo na starých položkách
-                    text_polotovaru = item_kosik.get("Polotovar", "-")
-                    
-                    pdf.cell(w_item, 7, odstran_diakritiku(item_kosik["ITEM"]), border=1)
-                    pdf.cell(w_mat, 7, odstran_diakritiku(item_kosik["Materiál"]), border=1)
-                    pdf.cell(w_akost, 7, odstran_diakritiku(item_kosik["Akosť"]), border=1)
-                    
-                    # Ošetrenie dĺžky textu polotovaru, aby nevyliezol z bunky
-                    cisty_polo = odstran_diakritiku(text_polotovaru)
-                    if len(cisty_polo) > 28:
-                        cisty_polo = cisty_polo[:25] + "..."
-                    pdf.cell(w_polo, 7, cisty_polo, border=1)
-                    
-                    pdf.cell(w_rozmer, 7, odstran_diakritiku(item_kosik["Rozmery"]), border=1)
-                    pdf.cell(w_ks, 7, str(item_kosik["Počet kusov"]), border=1, align='C')
-                    pdf.cell(w_mat_ks, 7, f"{item_kosik['Mat. / kus (€)']:.3f} EUR", border=1, align='R')
-                    pdf.cell(w_koop, 7, f"{item_kosik['Koop. / kus (€)']:.3f} EUR", border=1, align='R')
-                    pdf.cell(w_vst, 7, f"{item_kosik['Vstupné náklady (€/ks)']:.3f} EUR", border=1, align='R')
-                    pdf.cell(w_cenaks, 7, f"{item_kosik['Model Cena (€/ks)']:.2f} EUR", border=1, align='R')
-                    pdf.cell(w_spolu, 7, f"{item_kosik['Celkom za položku (€)']:.2f} EUR", border=1, align='R', ln=True)
+                    pdf.cell(25, 7, odstran_diakritiku(item_kosik["ITEM"]), border=1)
+                    pdf.cell(30, 7, odstran_diakritiku(item_kosik["Materiál"]), border=1)
+                    pdf.cell(25, 7, odstran_diakritiku(item_kosik["Akosť"]), border=1)
+                    pdf.cell(30, 7, odstran_diakritiku(item_kosik["Rozmery"]), border=1)
+                    pdf.cell(16, 7, str(item_kosik["Počet kusov"]), border=1, align='C')
+                    pdf.cell(25, 7, f"{item_kosik['Mat. / kus (€)']:.3f} EUR", border=1, align='R')
+                    pdf.cell(25, 7, f"{item_kosik['Koop. / kus (€)']:.3f} EUR", border=1, align='R')
+                    pdf.cell(30, 7, f"{item_kosik['Vstupné náklady (€/ks)']:.3f} EUR", border=1, align='R')
+                    pdf.cell(30, 7, f"{item_kosik['Model Cena (€/ks)']:.2f} EUR", border=1, align='R')
+                    pdf.cell(35, 7, f"{item_kosik['Celkom za položku (€)']:.2f} EUR", border=1, align='R', ln=True)
                     
                 pdf.ln(4)
                 pdf.set_font("Helvetica", "B", 11)
                 pdf.cell(0, 10, f"CELKOVA CENA PONUKY: {celkova_suma:.2f} EUR", ln=True, align='R')
-                pdf_output = pdf.output(dest='S')
-                if isinstance(pdf_output, str):
-                    pdf_data = pdf_output.encode('latin1')
-                else:
-                    pdf_data = bytes(pdf_output)
-
-
-                # --- B. GENERUJEME EXCEL (Identická štruktúra) ---
-                wb = openpyxl.Workbook()
-                ws = wb.active
-                ws.title = "Cenova Ponuka"
                 
-                # Zapnutie gridlines (mriežky)
-                ws.views.sheetView[0].showGridLines = True
-                
-                # Štýly pre Excel
-                font_title = Font(name='Calibri', size=14, bold=True)
-                font_header = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
-                font_data = Font(name='Calibri', size=11)
-                font_bold = Font(name='Calibri', size=11, bold=True)
-                fill_header = PatternFill(start_color='1F4E78', end_color='1F4E78', fill_type='solid')
-                thin_border = Border(
-                    left=Side(style='thin', color='D9D9D9'),
-                    right=Side(style='thin', color='D9D9D9'),
-                    top=Side(style='thin', color='D9D9D9'),
-                    bottom=Side(style='thin', color='D9D9D9')
-                )
-                
-                # Hlavička info
-                ws['A1'] = "CENOVÁ PONUKA"
-                ws['A1'].font = font_title
-                ws['A3'] = f"Označenie CP: {ponuka}"
-                ws['A4'] = f"Dátum vyhotovenia: {ciste_datum}"
-                ws['A5'] = f"Zákazník: {zakaznik} ({krajina_hodnota})"
-                for r in [3,4,5]:
-                    ws[f'A{r}'].font = font_bold
-                
-                # Hlavička tabuľky
-                headers = ["ITEM", "Materiál", "Akosť", "Popis polotovaru", "Rozmery", "Počet kusov", "Mat./ks (€)", "Koop./ks (€)", "Vstupné náklady (€)", "Cena/ks (€)", "Spolu (€)"]
-                ws.append([]) # Prázdny riadok 6
-                ws.append(headers) # Riadok 7
-                
-                for col_num, header in enumerate(headers, 1):
-                    cell = ws.cell(row=7, column=col_num)
-                    cell.font = font_header
-                    cell.fill = fill_header
-                    cell.alignment = Alignment(horizontal="center" if col_num in [5,6] else "right" if col_num > 6 else "left")
-                
-                # Dáta
-                start_row = 8
-                for idx, item_kosik in enumerate(st.session_state.kosik, start=start_row):
-                    row_data = [
-                        item_kosik["ITEM"],
-                        item_kosik["Materiál"],
-                        item_kosik["Akosť"],
-                        item_kosik.get("Polotovar", "-"),
-                        item_kosik["Rozmery"],
-                        item_kosik["Počet kusov"],
-                        item_kosik['Mat. / kus (€)'],
-                        item_kosik['Koop. / kus (€)'],
-                        item_kosik['Vstupné náklady (€/ks)'],
-                        item_kosik['Model Cena (€/ks)'],
-                        item_kosik['Celkom za položku (€)']
-                    ]
-                    ws.append(row_data)
-                    
-                    # Formátovanie buniek dátového riadku
-                    for col_num in range(1, len(row_data) + 1):
-                        c = ws.cell(row=idx, column=col_num)
-                        c.font = font_data
-                        c.border = thin_border
-                        if col_num in [6]: # Počet ks
-                            c.number_format = '#,##0'
-                            c.alignment = Alignment(horizontal="center")
-                        elif col_num in [7, 8, 9]: # Ceny na 3 des. miesta
-                            c.number_format = '#,##0.000'
-                        elif col_num in [10, 11]: # Spolu na 2 des. miesta
-                            c.number_format = '#,##0.00'
-                
-                # Finálna suma pod tabuľkou
-                end_row = start_row + len(st.session_state.kosik)
-                ws.cell(row=end_row+1, column=10, value="CELKOM PONUKA:").font = font_bold
-                ws.cell(row=end_row+1, column=10).alignment = Alignment(horizontal="right")
-                
-                total_cell = ws.cell(row=end_row+1, column=11, value=f"=SUM(K{start_row}:K{end_row})")
-                total_cell.font = font_bold
-                total_cell.number_format = '#,##0.00'
-                
-                # Automatická úprava šírok stĺpcov
-                for col in ws.columns:
-                    max_len = max(len(str(cell.value or '')) for cell in col)
-                    col_letter = openpyxl.utils.get_column_letter(col[0].column)
-                    ws.column_dimensions[col_letter].width = max(max_len + 3, 11)
-                
-                excel_buffer = io.BytesIO()
-                wb.save(excel_buffer)
-                excel_data = excel_buffer.getvalue()
-
-
-                # --- C. ZABALENIE DO ZIP ARCHÍVU ---
-                zip_buffer = io.BytesIO()
-                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-                    cp_nazov_suboru = ciste_ponuka if ciste_ponuka.strip() else 'MEC'
-                    zip_file.writestr(f"Cenova_ponuka_{cp_nazov_suboru}.pdf", pdf_data)
-                    zip_file.writestr(f"Cenova_ponuka_{cp_nazov_suboru}.xlsx", excel_data)
-                
-                finalny_zip_export = zip_buffer.getvalue()
+                pdf_data = pdf.output()
             
-            # Jedno spoločné tlačidlo, ktoré stiahne archív s oboma formátmi naraz
             st.download_button(
-                label="📄 Vygenerovať PDF + Excel ponuku",
-                data=finalny_zip_export,
-                file_name=f"Podklady_CP_{ciste_ponuka if ciste_ponuka.strip() else 'MEC'}.zip",
-                mime="application/zip",
+                label="📄 1. Vygenerovať PDF ponuku",
+                data=bytes(pdf_data),
+                file_name=f"Cenova_ponuka_{ciste_ponuka if ciste_ponuka.strip() else 'MEC'}.pdf",
+                mime="application/pdf",
                 use_container_width=True
             )
-        except Exception as err:
-            st.error(f"Nepodarilo sa pripraviť exportné moduly: {err}")
+        except Exception as pdf_err:
+            st.error(f"Nepodarilo sa pripraviť PDF modul: {pdf_err}")
 
 # 2. STĹPEC: Uloženie do Google Sheetu
 with col_save:
