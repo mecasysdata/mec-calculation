@@ -456,8 +456,6 @@ if st.session_state.kosik:
         st.metric("CELKOVÁ CENA PONUKY", f"{celkova_suma:.2f} €")
 
 # MINIMÁLNA ÚPRAVA: PANEL AKCIÍ – Tlačidlo Resetu sa zobrazuje vždy na spodu pre pohodlnú novú kalkuláciu
-st.write("") 
-st.write("### ⚙️ Akcie s cenovou ponukou")
 
 # Rozdelenie na 3 stĺpce vedľa seba
 col_pdf, col_save, col_reset = st.columns(3)
